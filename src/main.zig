@@ -12,7 +12,9 @@ pub fn main() !void {
     const reader = buf_reader.reader();
 
     while (reader.readByte()) |outputByte| {
-        std.debug.print("0x{x}\n", .{outputByte});
+        if (outputByte != 0) {
+            std.debug.print("0x{x}\n", .{outputByte});
+        }
     } else |err| switch (err) {
         error.EndOfStream => {
             std.debug.print("End of file\n", .{});
