@@ -23,22 +23,34 @@ pub fn main() !void {
 
     // var cpu = Cpu{ .memory = main_memory, .index = 0 };
     // var cpu = Cpu{ .memory = main_memory, .index = 0x008f };
-    var cpu = Cpu{ .memory = main_memory, .index = 0x0100 };
+
+    // zig fmt: off
+    var cpu = Cpu{
+        .memory = main_memory,
+        .pc = 0x0100,
+        .sp = 0xfffe,
+        .af = Register{ .left = 0x01, .right = 0xb0 },
+        .bc = Register{ .left = 0x00, .right = 0x13 },
+        .de = Register{ .left = 0x00, .right = 0xd8 },
+        .hl = Register{ .left = 0x01, .right = 0x4d } };
+    // zig fmt: on
 
     // const end = cpu.index + 50;
     // const end = cpu.index + 500;
     const end = cpu.memory.len;
     // var index: u32 = 0x100;
     // const end = 0x100 + 50;
-    while (cpu.index < end and cpu.index < cpu.memory.len) {
+
+    cpu.logState();
+    while (cpu.pc < end and cpu.pc < cpu.memory.len) {
         const op_code = cpu.read();
         if (op_code == 0) {
             continue;
         }
-        if (cpu.index - 1 > 0xa7 and cpu.index - 1 < 0xe0) {
-            // Logo and video
-            continue;
-        }
+        // if (cpu.pc - 1 > 0xa7 and cpu.pc - 1 < 0xe0) {
+        //     // Logo and video
+        //     continue;
+        // }
         // const x = op_code >> 6 & 0b11;
         // const y = op_code >> 3 & 0b111;
         // const z = op_code & 0b111;
@@ -50,22 +62,28 @@ pub fn main() !void {
         // cpu.print("\n{x:02} {x} {x}\n", .{ op_code, first, second });
         // cpu.print("{b:08} 0x{x:02} {d:>2} {d:>2} x:{d} y:{d} z:{d} p:{d} q:{d}\n", .{ op_code, op_code, first, second, x, y, z, p, q });
         // cpu.print("{d:>2} {d:>2}\n", .{ first, second });
-        cpu.print("${x:04} - ", .{cpu.index - 1});
+        // cpu.print("${x:04} - ", .{cpu.pc - 1});
         op_lookup[op_code](&cpu, op_code);
-        cpu.print("\n", .{});
+        // cpu.print("\n", .{});
+        // cpu.logState();
     }
 }
 
 const Cpu = struct {
     memory: []u8,
-    index: u16,
+    pc: u16,
+    sp: u16,
+    af: Register,
+    bc: Register,
+    de: Register,
+    hl: Register,
     fn read(self: *Cpu) u8 {
-        const memory_value = self.memory[self.index];
-        self.index += 1;
+        const memory_value = self.memory[self.pc];
+        self.pc += 1;
         return memory_value;
     }
     fn printIndex(self: *Cpu) void {
-        self.print("Current Index: {0d} {0x}\n", .{self.index});
+        self.print("Current Index: {0d} {0x}\n", .{self.pc});
     }
     fn print(_: *Cpu, comptime fmt: []const u8, args: anytype) void {
         const shouldPrint = false;
@@ -73,7 +91,12 @@ const Cpu = struct {
             std.debug.print(fmt, args);
         }
     }
+    fn logState(self: *Cpu) void {
+        std.debug.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:\n", .{ self.af.left, self.af.right, self.bc.left, self.bc.right, self.de.left, self.de.right, self.hl.left, self.hl.right, self.sp, self.pc });
+    }
 };
+
+const Register = packed struct { left: u8, right: u8 };
 
 fn nop(_: *Cpu, op_code: u8) void {
     // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});
@@ -184,7 +207,7 @@ fn ld_sp_hl(cpu: *Cpu, _: u8) void {
 
 fn ld_hl_sp_e8(cpu: *Cpu, _: u8) void {
     const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.index)) + @as(i8, @bitCast(displacement))));
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("LD HL,SP+${X:02}\n", .{address});
 }
 
@@ -209,13 +232,13 @@ fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
     const condition = reg_cc[register_index];
     const displacement = cpu.read();
 
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.index)) + @as(i8, @bitCast(displacement))));
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("JR {s},Addr_{x:04}\n", .{ condition, address });
 }
 
 fn jr_e8(cpu: *Cpu, _: u8) void {
     const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.index)) + @as(i8, @bitCast(displacement))));
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("JR Addr_{x:04}\n", .{address});
 }
 
@@ -301,7 +324,7 @@ fn add_hl_rp(cpu: *Cpu, op_code: u8) void {
 
 fn add_sp_e8(cpu: *Cpu, _: u8) void {
     const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.index)) + @as(i8, @bitCast(displacement))));
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("ADD SP,ADDR_${X:02}\n", .{address});
 }
 
