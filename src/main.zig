@@ -29,15 +29,15 @@ pub fn main() !void {
         .memory = main_memory,
         .pc = 0x0100,
         .sp = 0xfffe,
-        .af = Register{ .left = 0x01, .right = 0xb0 },
-        .bc = Register{ .left = 0x00, .right = 0x13 },
-        .de = Register{ .left = 0x00, .right = 0xd8 },
-        .hl = Register{ .left = 0x01, .right = 0x4d } };
+        .af = Register{ .f = 0x01b0 },
+        .bc = Register{ .f = 0x0013 },
+        .de = Register{ .f = 0x00d8 },
+        .hl = Register{ .f = 0x014d } };
     // zig fmt: on
 
-    // const end = cpu.index + 50;
+    const end = cpu.pc + 50;
     // const end = cpu.index + 500;
-    const end = cpu.memory.len;
+    // const end = cpu.memory.len;
     // var index: u32 = 0x100;
     // const end = 0x100 + 50;
 
@@ -65,7 +65,7 @@ pub fn main() !void {
         // cpu.print("${x:04} - ", .{cpu.pc - 1});
         op_lookup[op_code](&cpu, op_code);
         // cpu.print("\n", .{});
-        // cpu.logState();
+        cpu.logState();
     }
 }
 
@@ -92,11 +92,12 @@ const Cpu = struct {
         }
     }
     fn logState(self: *Cpu) void {
-        std.debug.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:\n", .{ self.af.left, self.af.right, self.bc.left, self.bc.right, self.de.left, self.de.right, self.hl.left, self.hl.right, self.sp, self.pc });
+        std.debug.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ self.af.sp.hi, self.af.sp.lo, self.bc.sp.hi, self.bc.sp.lo, self.de.sp.hi, self.de.sp.lo, self.hl.sp.hi, self.hl.sp.lo, self.sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
     }
 };
 
-const Register = packed struct { left: u8, right: u8 };
+const SplitRegister = packed struct { lo: u8, hi: u8 };
+const Register = packed union { f: u16, sp: SplitRegister };
 
 fn nop(_: *Cpu, op_code: u8) void {
     // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});

@@ -13,5 +13,16 @@
         "isDefault": true
       }
     }
+    // {
+    //   "label": "doctor",
+    //   "type": "shell",
+    //   "command": "${workspaceFolder}/zig-out/bin/gameboy | ${workspaceFolder}/../gameboy-doctor/gameboy-doctor - cpu_instrs 7",
+    //   "problemMatcher": [],
+    //   "group": {
+    //     "kind": "none",
+    //     "isDefault": true
+    //   },
+    //   "dependsOn": ["build"]
+    // }
   ]
 }
