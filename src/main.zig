@@ -51,7 +51,7 @@ pub fn main() !void {
         };
     // zig fmt: on
 
-    const end = 17000;
+    const end = 500000;
     // const end = cpu.index + 500;
     // const end = cpu.memory.len;
     // var index: u32 = 0x100;
@@ -71,11 +71,11 @@ pub fn main() !void {
         // const q = y & 1;
         // cpu.print("{d:>2} {d:>2}\n", .{ first, second });
         // cpu.print("${x:04} - ", .{cpu.pc - 1});
-        cpu.print("{X:02}\n", .{op_code});
+        // cpu.print("{X:02}\n", .{op_code});
 
-        // if (cpu.counter == 16508) {
-        //     @breakpoint();
-        // }
+        if (verbose and cpu.counter == 31435) {
+            @breakpoint();
+        }
 
         op_lookup[op_code](&cpu, op_code);
         cpu.counter += 1;
@@ -174,7 +174,7 @@ fn ld_r_r(cpu: *Cpu, op_code: u8) void {
 
 fn ld_bc_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (BC),A\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.memory[bc.full] = a_reg.*;
 }
 
 fn ld_de_a(cpu: *Cpu, _: u8) void {
@@ -184,22 +184,24 @@ fn ld_de_a(cpu: *Cpu, _: u8) void {
 
 fn ld_a_bc(cpu: *Cpu, _: u8) void {
     cpu.print("LD A,(BC)\n", .{});
-    std.debug.panic("Not implemented", .{});
+    a_reg.* = cpu.memory[bc.full];
 }
 
 fn ld_a_de(cpu: *Cpu, _: u8) void {
     cpu.print("LD A,(DE)\n", .{});
-    std.debug.panic("Not implemented", .{});
+    a_reg.* = cpu.memory[de.full];
 }
 
 fn ld_hli_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL+),A\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.memory[hl.full] = a_reg.*;
+    hl.full += 1;
 }
 
 fn ld_hld_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL-),A\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.memory[hl.full] = a_reg.*;
+    hl.full -= 1;
 }
 
 fn ld_a_hli(cpu: *Cpu, _: u8) void {
@@ -210,14 +212,14 @@ fn ld_a_hli(cpu: *Cpu, _: u8) void {
 
 fn ld_a_hld(cpu: *Cpu, _: u8) void {
     cpu.print("LD A,(HL-)\n", .{});
-    std.debug.panic("Not implemented", .{});
+    a_reg.* = cpu.memory[hl.full];
+    hl.full -= 1;
 }
 
 fn ld_a16_a(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD (${X:04}),A\n", .{address});
-    // std.debug.panic("Not implemented", .{});
     cpu.memory[address] = a_reg.*;
 }
 
@@ -225,7 +227,7 @@ fn ld_a_a16(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD A,${X:04},A\n", .{address});
-    std.debug.panic("Not implemented", .{});
+    a_reg.* = cpu.memory[address];
 }
 
 fn ld_a16_sp(cpu: *Cpu, _: u8) void {
@@ -297,7 +299,15 @@ fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("CALL {s},${X:04}\n", .{ condition, address });
-    std.debug.panic("Not implemented", .{});
+    if (register_index == 0) {
+        // NZ
+        if (flags.z == 0) {
+            push(cpu, cpu.pc);
+            cpu.pc = address;
+        }
+    } else {
+        std.debug.panic("Not implemented {s}", .{condition});
+    }
 }
 
 fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
@@ -513,37 +523,66 @@ fn cp_r(cpu: *Cpu, op_code: u8) void {
 fn alu_n8(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    const change: u16 = cpu.read();
-    const current_value: u16 = a_reg.*;
+    const change: u8 = cpu.read();
+    const current_value: i10 = a_reg.*;
     cpu.print("{s} A,${X:02}\n", .{ register, change });
-    const overflow_h = current_value >> 4 & 1;
-    const overflow_c = current_value >> 8 & 1;
-    var new_value = current_value;
+    const overflow_h = current_value >> 3 & 1;
+    const overflow_c = current_value >> 7 & 1;
+    var new_value: i10 = current_value;
     if (y == 0) {
+        // ADD
         new_value += change;
-        // } else if (y == 7){
-        //     new_value = change;
+        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        flags.n = 0;
+        const new_overflow_c = new_value >> 7 & 1;
+        if (new_overflow_c != overflow_c) {
+            flags.c = 1;
+        } else {
+            flags.c = 0;
+        }
+        const new_overflow_h = new_value >> 3 & 1;
+        if (new_overflow_h != overflow_h) {
+            flags.h = 1;
+        } else {
+            flags.h = 0;
+        }
+    } else if (y == 2) {
+        // SUB
+        new_value -= change;
+        flags.c = @intFromBool(change > current_value);
+        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        flags.n = 1;
+        const new_overflow_h = new_value >> 3 & 1;
+        if (new_overflow_h != overflow_h) {
+            flags.h = 1;
+        } else {
+            flags.h = 0;
+        }
+    } else if (y == 4) {
+        // AND
+        new_value = current_value & change;
+        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        flags.n = 0;
+        flags.h = 1;
+        flags.c = 0;
+    } else if (y == 7) {
+        // CP
+        new_value -= change;
+        flags.n = 1;
+        flags.c = @intFromBool(change > current_value);
+        const new_overflow_h = new_value >> 3 & 1;
+        if (new_overflow_h != overflow_h) {
+            flags.h = 1;
+        } else {
+            flags.h = 0;
+        }
     } else {
         std.debug.panic("Not implemented: {s}", .{register});
     }
-    a_reg.* = @truncate(new_value);
-    if (new_value == 0) {
+    if (new_value & 0xFF == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
-    }
-    flags.n = 0;
-    const new_overflow_h = new_value >> 4 & 1;
-    if (new_overflow_h != overflow_h) {
-        flags.h = 1;
-    } else {
-        flags.h = 0;
-    }
-    const new_overflow_c = new_value >> 8 & 1;
-    if (new_overflow_c != overflow_c) {
-        flags.c = 1;
-    } else {
-        flags.c = 0;
     }
 }
 
@@ -552,20 +591,19 @@ fn alu_n8(cpu: *Cpu, op_code: u8) void {
 fn and_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("AND {s}\n", .{register});
+    cpu.print("AND A,{s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
 fn or_r(cpu: *Cpu, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
-    cpu.print("OR {s}\n", .{register});
-    // B1
-    // OR (HL)
-    if (y == 6) {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    cpu.print("OR A,{s}\n", .{register});
+    if (z == 6) {
+        // OR (HL)
         a_reg.* = a_reg.* | cpu.memory[hl.full];
     } else {
-        a_reg.* = a_reg.* | reg_8_t[y].*;
+        a_reg.* = a_reg.* | reg_8_t[z].*;
     }
     if (a_reg.* == 0) {
         flags.z = 1;
