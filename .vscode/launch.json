@@ -12,6 +12,15 @@
       "args": [],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Verbose",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["--verbose"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
     }
   ]
 }

@@ -3,6 +3,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    const std_out = std.io.getStdOut().writer();
+
     // const file = try std.fs.cwd().openFile("roms/dmg_boot.bin", .{});
     // const fileName = "01-special.gb";
     // const fileName = "02-interrupts.gb";
@@ -18,60 +20,59 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ fileName, .{});
     defer file.close();
 
-    const main_memory = try file.readToEndAlloc(allocator, 32 * 1024);
+    const main_memory = try allocator.alloc(u8, 0xFFFF);
     defer allocator.free(main_memory);
+
+    _ = try file.readAll(main_memory);
 
     // var cpu = Cpu{ .memory = main_memory, .index = 0 };
     // var cpu = Cpu{ .memory = main_memory, .index = 0x008f };
+
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+    // std.debug.print("${s}\n", .{args});
+    var shouldPrint = false;
+    if (args.len > 1 and std.mem.eql(u8, args[1], "--verbose")) {
+        shouldPrint = true;
+    }
 
     // zig fmt: off
     var cpu = Cpu{
         .memory = main_memory,
         .pc = 0x0100,
-        // .sp = 0xfffe,
-        .counter = 0,
-        // .af = Register{ .f = 0x01b0 },
-        // .bc = Register{ .f = 0x0013 },
-        // .de = Register{ .f = 0x00d8 },
-        // .hl = Register{ .f = 0x014d }
+        .counter = 1,
+        .shouldPrint = shouldPrint,
+        .stdOut = std_out
         };
     // zig fmt: on
 
-    const end = 50;
+    const end = 5000;
     // const end = cpu.index + 500;
     // const end = cpu.memory.len;
     // var index: u32 = 0x100;
     // const end = 0x100 + 50;
 
-    cpu.logState();
+    try cpu.logState();
+    // cpu.print_flags();
     while (cpu.counter < end and cpu.pc < cpu.memory.len) {
         const op_code = cpu.read();
-        // if (op_code == 0) {
-        //     continue;
-        // }
-        // if (cpu.pc - 1 > 0xa7 and cpu.pc - 1 < 0xe0) {
-        //     // Logo and video
-        //     continue;
-        // }
         // const x = op_code >> 6 & 0b11;
         // const y = op_code >> 3 & 0b111;
         // const z = op_code & 0b111;
         // const p = y >> 1;
         // const q = y & 1;
-        // const first = op_code >> 4;
-        // const second = op_code & 0xF;
-        // cpu.print("{x:02} {d:>2} {d:>2}\n", .{ op_code, first, second });
-        // cpu.print("\n{x:02} {x} {x}\n", .{ op_code, first, second });
-        // cpu.print("{b:08} 0x{x:02} {d:>2} {d:>2} x:{d} y:{d} z:{d} p:{d} q:{d}\n", .{ op_code, op_code, first, second, x, y, z, p, q });
         // cpu.print("{d:>2} {d:>2}\n", .{ first, second });
         // cpu.print("${x:04} - ", .{cpu.pc - 1});
+        cpu.print("{X:02}\n", .{op_code});
 
-        if (cpu.pc == 0x205) {
-            @breakpoint();
+        if (cpu.counter == 70) {
+            // @breakpoint();
         }
 
         op_lookup[op_code](&cpu, op_code);
-        cpu.logState();
+        cpu.counter += 1;
+        try cpu.logState();
+        // cpu.print_flags();
         // cpu.print("\n", .{});
     }
 }
@@ -79,14 +80,10 @@ pub fn main() !void {
 const Cpu = struct {
     memory: []u8,
     pc: u16,
-    // sp: u16,
-    // af: Register,
-    // bc: Register,
-    // de: Register,
-    // hl: Register,
     counter: u32,
+    shouldPrint: bool,
+    stdOut: std.fs.File.Writer,
     fn read(self: *Cpu) u8 {
-        self.counter += 1;
         const memory_value = self.memory[self.pc];
         self.pc += 1;
         return memory_value;
@@ -94,20 +91,41 @@ const Cpu = struct {
     fn printIndex(self: *Cpu) void {
         self.print("Current Index: {0d} {0x}\n", .{self.pc});
     }
-    fn print(_: *Cpu, comptime fmt: []const u8, args: anytype) void {
-        const shouldPrint = true;
-        if (shouldPrint) {
+    fn print(self: *Cpu, comptime fmt: []const u8, args: anytype) void {
+        if (self.shouldPrint) {
             std.debug.print(fmt, args);
         }
     }
-    fn logState(self: *Cpu) void {
-        // std.debug.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ self.af.sp.hi, self.af.sp.lo, self.bc.sp.hi, self.bc.sp.lo, self.de.sp.hi, self.de.sp.lo, self.hl.sp.hi, self.hl.sp.lo, self.sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
-        std.debug.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ af.sp.hi, af.sp.lo, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
+    fn print_flags(self: *Cpu) void {
+        self.print("{b}\n", .{af.sp.flag.full});
+        self.print("c: {b}\n", .{flags.c});
+        self.print("h: {b}\n", .{flags.h});
+        self.print("n: {b}\n", .{flags.n});
+        self.print("z: {b}\n", .{flags.z});
+    }
+    fn logState(self: *Cpu) !void {
+        try self.stdOut.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
+        self.print(" - {d}", .{self.counter});
+        try self.stdOut.print("\n", .{});
     }
 };
 
 const SplitRegister = packed struct { lo: u8, hi: u8 };
-const Register = packed union { f: u16, sp: SplitRegister };
+const Register = packed union { full: u16, sp: SplitRegister };
+
+const FlagRegister = packed struct { x: u4, c: u1, h: u1, n: u1, z: u1 };
+const FlagRegisterUnion = packed union { full: u8, sp: FlagRegister };
+const AfRegister = packed struct { flag: FlagRegisterUnion, a: u8 };
+const AfRegisterFull = packed union { af: u16, sp: AfRegister };
+
+// var af = Register{ .f = 0x01b0 };
+var af = AfRegisterFull{ .af = 0x01b0 };
+var bc = Register{ .full = 0x0013 };
+var de = Register{ .full = 0x00d8 };
+var hl = Register{ .full = 0x014d };
+var sp: u16 = 0xfffe;
+const a_reg = &af.sp.a;
+const flags = &af.sp.flag.sp;
 
 fn nop(_: *Cpu, _: u8) void {
     // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});
@@ -154,7 +172,7 @@ fn ld_bc_a(cpu: *Cpu, _: u8) void {
 
 fn ld_de_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (DE),A\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.memory[de.full] = a_reg.*;
 }
 
 fn ld_a_bc(cpu: *Cpu, _: u8) void {
@@ -179,8 +197,8 @@ fn ld_hld_a(cpu: *Cpu, _: u8) void {
 
 fn ld_a_hli(cpu: *Cpu, _: u8) void {
     cpu.print("LD A,(HL+)\n", .{});
-    af.sp.hi = cpu.memory[hl.f];
-    hl.f += 1;
+    a_reg.* = cpu.memory[hl.full];
+    hl.full += 1;
 }
 
 fn ld_a_hld(cpu: *Cpu, _: u8) void {
@@ -268,7 +286,19 @@ fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
 
     const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("JR {s},Addr_{x:04}\n", .{ condition, address });
-    std.debug.panic("Not implemented", .{});
+    if (register_index == 0) {
+        // NZ
+        if (flags.z == 0) {
+            cpu.pc = address;
+        }
+    } else if (register_index == 1) {
+        // Z
+        if (flags.z != 0) {
+            cpu.pc = address;
+        }
+    } else {
+        std.debug.panic("Not implemented", .{});
+    }
 }
 
 fn jr_e8(cpu: *Cpu, _: u8) void {
@@ -330,7 +360,24 @@ fn inc_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     cpu.print("INC {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    var value: u8 = reg_8_t[y].*;
+    if (value == 0xFF) {
+        value = 0;
+    } else {
+        value += 1;
+    }
+    reg_8_t[y].* = value;
+    if (value == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+    flags.n = 0;
+    if (value > 0xF) {
+        flags.h = 1;
+    } else {
+        flags.h = 0;
+    }
 }
 
 fn inc_rp(cpu: *Cpu, op_code: u8) void {
@@ -338,14 +385,19 @@ fn inc_rp(cpu: *Cpu, op_code: u8) void {
     const p = y >> 1;
     const register = reg_p[p];
     cpu.print("INC {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    reg_p_t[y].* += 1;
 }
 
 fn dec_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     cpu.print("DEC {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    reg_8_t[y].* -= 1;
+    if (reg_8_t[y].* == 0) {
+        flags.z = 1;
+    }
+    flags.n = 1;
+    // flags.h = 0;
 }
 
 fn dec_rp(cpu: *Cpu, op_code: u8) void {
@@ -353,7 +405,7 @@ fn dec_rp(cpu: *Cpu, op_code: u8) void {
     const p = y >> 1;
     const register = reg_p[p];
     cpu.print("DEC {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    reg_p_t[y].* -= 1;
 }
 
 fn add_r(cpu: *Cpu, op_code: u8) void {
@@ -399,11 +451,6 @@ fn sbc_r(cpu: *Cpu, op_code: u8) void {
     std.debug.panic("Not implemented", .{});
 }
 
-// fn cp_a_n8(cpu: *Cpu, _: u8) void {
-//     const address = cpu.read();
-//     cpu.print("CP ${X:02}\n", .{address});
-// }
-
 fn cp_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
@@ -439,7 +486,14 @@ fn xor_r(cpu: *Cpu, op_code: u8) void {
     const register_index = op_code & 7;
     const register = reg_8[register_index];
     cpu.print("XOR A,{s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    // std.debug.panic("Not implemented", .{});
+    a_reg.* = reg_8_t[register_index].* ^ a_reg.*;
+    if (a_reg.* == 0) {
+        flags.z = 1;
+    }
+    flags.n = 0;
+    flags.h = 0;
+    flags.c = 0;
 }
 
 // Stack
@@ -483,6 +537,8 @@ fn rra(cpu: *Cpu, _: u8) void {
 }
 
 fn daa(cpu: *Cpu, _: u8) void {
+    // Complicated
+    // Uses N and H flags
     cpu.print("DAA\n", .{});
     std.debug.panic("Not implemented", .{});
 }
@@ -547,25 +603,19 @@ fn stop(cpu: *Cpu, _: u8) void {
 }
 
 const reg_8: [8][]const u8 = .{ "B", "C", "D", "E", "H", "L", "(HL)", "A" };
-var reg_8_t: [8]*u8 = .{ &bc.sp.hi, &bc.sp.lo, &de.sp.hi, &de.sp.lo, &hl.sp.hi, &hl.sp.lo, &af.sp.lo, &af.sp.hi };
+var reg_8_t: [8]*u8 = .{ &bc.sp.hi, &bc.sp.lo, &de.sp.hi, &de.sp.lo, &hl.sp.hi, &hl.sp.lo, a_reg, a_reg };
 
 const reg_p: [4][]const u8 = .{ "BC", "DE", "HL", "SP" };
-const reg_p_t: [4]*u16 = .{ &bc.f, &de.f, &hl.f, &sp };
+const reg_p_t: [4]*u16 = .{ &bc.full, &de.full, &hl.full, &sp };
 
 const reg_p2: [4][]const u8 = .{ "BC", "DE", "HL", "AF" };
-const reg_p2_t: [4]*u16 = .{ &bc.f, &de.f, &hl.f, &af.f };
+const reg_p2_t: [4]*u16 = .{ &bc.full, &de.full, &hl.full, &af.af };
 
 const reg_cc: [4][]const u8 = .{ "NZ", "Z", "NC", "C" };
 
 const reg_alu: [8][]const u8 = .{ "ADD A", "ADC A", "SUB", "SBC A", "AND", "XOR", "OR", "CP" };
 
 const reg_rot: [8][]const u8 = .{ "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SWAP", "SRL" };
-
-var af = Register{ .f = 0x01b0 };
-var bc = Register{ .f = 0x0013 };
-var de = Register{ .f = 0x00d8 };
-var hl = Register{ .f = 0x014d };
-var sp: u16 = 0xfffe;
 
 // zig fmt: off
 const op_lookup = [256] *const fn (*Cpu, u8) void { 
