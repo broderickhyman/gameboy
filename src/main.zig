@@ -513,28 +513,33 @@ fn cp_r(cpu: *Cpu, op_code: u8) void {
 fn alu_n8(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    const value = cpu.read();
-    cpu.print("{s} A,${X:02}\n", .{ register, value });
-    const overflow_h: u8 = value >> 4 & 1;
-    const overflow_c: u9 = value >> 8 & 1;
+    const change: u16 = cpu.read();
+    const current_value: u16 = a_reg.*;
+    cpu.print("{s} A,${X:02}\n", .{ register, change });
+    const overflow_h = current_value >> 4 & 1;
+    const overflow_c = current_value >> 8 & 1;
+    var new_value = current_value;
     if (y == 0) {
-        a_reg.* += value;
+        new_value += change;
+        // } else if (y == 7){
+        //     new_value = change;
     } else {
-        std.debug.panic("Not implemented", .{});
+        std.debug.panic("Not implemented: {s}", .{register});
     }
-    if (a_reg.* == 0) {
+    a_reg.* = @truncate(new_value);
+    if (new_value == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
     }
     flags.n = 0;
-    const new_overflow_h = value >> 4 & 1;
+    const new_overflow_h = new_value >> 4 & 1;
     if (new_overflow_h != overflow_h) {
         flags.h = 1;
     } else {
         flags.h = 0;
     }
-    const new_overflow_c = value >> 8 & 1;
+    const new_overflow_c = new_value >> 8 & 1;
     if (new_overflow_c != overflow_c) {
         flags.c = 1;
     } else {
