@@ -74,7 +74,7 @@ pub fn main() !void {
         // cpu.print("{X:02}\n", .{op_code});
 
         // if (verbose and cpu.counter == 31450) {
-        if (verbose and cpu.counter == 31343) {
+        if (verbose and cpu.counter == 32509) {
             cpu.shouldPrint = true;
             @breakpoint();
         }
@@ -171,7 +171,15 @@ fn ld_r_r(cpu: *Cpu, op_code: u8) void {
     const register1 = reg_8[y];
     const register2 = reg_8[z];
     cpu.print("LD {s},{s}\n", .{ register1, register2 });
-    reg_8_t[y].* = reg_8_t[z].*;
+    var source = reg_8_t[z].*;
+    var destination = reg_8_t[y];
+    if (z == 6) {
+        source = cpu.memory[hl.full];
+    }
+    if (y == 6) {
+        destination = &cpu.memory[hl.full];
+    }
+    destination.* = source;
 }
 
 fn ld_bc_a(cpu: *Cpu, _: u8) void {
@@ -313,7 +321,6 @@ fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
 }
 
 fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
-    // const register_index = op_code & 3;
     const y = op_code >> 3 & 0b111 - 4;
     const condition = reg_cc[y];
     const displacement = cpu.read();
@@ -330,8 +337,16 @@ fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
         if (flags.z != 0) {
             cpu.pc = address;
         }
+    } else if (y == 2) {
+        // NC
+        if (flags.c == 0) {
+            cpu.pc = address;
+        }
     } else {
-        std.debug.panic("Not implemented", .{});
+        // C
+        if (flags.c != 0) {
+            cpu.pc = address;
+        }
     }
 }
 
@@ -353,10 +368,30 @@ fn reti(cpu: *Cpu, _: u8) void {
 }
 
 fn ret_cc(cpu: *Cpu, op_code: u8) void {
-    const register_index = op_code & 3;
-    const condition = reg_cc[register_index];
+    const y = op_code >> 3 & 0b111;
+    const condition = reg_cc[y];
     cpu.print("RET {s}\n", .{condition});
-    std.debug.panic("Not implemented", .{});
+    if (y == 0) {
+        // NZ
+        if (flags.z == 0) {
+            ret(cpu, 0);
+        }
+    } else if (y == 1) {
+        // Z
+        if (flags.z != 0) {
+            ret(cpu, 0);
+        }
+    } else if (y == 2) {
+        // NC
+        if (flags.c == 0) {
+            ret(cpu, 0);
+        }
+    } else {
+        // C
+        if (flags.c != 0) {
+            ret(cpu, 0);
+        }
+    }
 }
 
 fn jp_a16(cpu: *Cpu, _: u8) void {
@@ -444,25 +479,20 @@ fn dec_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     cpu.print("DEC {s}\n", .{register});
-    var value: u8 = reg_8_t[y].*;
-    const overflow = value >> 4 & 1;
-    if (value == 0xFF) {
-        value = 0;
-    } else {
-        value -= 1;
+    var data_pointer = reg_8_t[y];
+    if (y == 6) {
+        data_pointer = &cpu.memory[hl.full];
     }
-    reg_8_t[y].* = value;
-    if (value == 0) {
+    const current_value = data_pointer.*;
+    const result = @subWithOverflow(current_value, 1);
+    data_pointer.* = result[0];
+    flags.n = 1;
+    const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(1)));
+    flags.h = half_result[1];
+    if (data_pointer.* == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
-    }
-    flags.n = 1;
-    const new_overflow = value >> 4 & 1;
-    if (new_overflow != overflow) {
-        flags.h = 1;
-    } else {
-        flags.h = 0;
     }
 }
 
@@ -525,7 +555,7 @@ fn cp_r(cpu: *Cpu, op_code: u8) void {
 fn alu_n8(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    const change = cpu.read();
+    var change = cpu.read();
     const current_value = a_reg.*;
     cpu.print("{s} A,${X:02}\n", .{ register, change });
     var new_value = current_value;
@@ -536,7 +566,17 @@ fn alu_n8(cpu: *Cpu, op_code: u8) void {
         a_reg.* = new_value;
         flags.c = result[1];
         flags.n = 0;
-        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
+        flags.h = half_result[1];
+    } else if (y == 1) {
+        // ADC
+        change += flags.c;
+        const result = @addWithOverflow(current_value, change);
+        new_value = result[0];
+        a_reg.* = new_value;
+        flags.c = result[1];
+        flags.n = 0;
+        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
         flags.h = half_result[1];
     } else if (y == 2) {
         // SUB
@@ -545,7 +585,7 @@ fn alu_n8(cpu: *Cpu, op_code: u8) void {
         new_value = result[0];
         a_reg.* = new_value;
         flags.n = 1;
-        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
         flags.h = half_result[1];
     } else if (y == 4) {
         // AND
@@ -554,13 +594,20 @@ fn alu_n8(cpu: *Cpu, op_code: u8) void {
         flags.n = 0;
         flags.h = 1;
         flags.c = 0;
+    } else if (y == 5) {
+        // XOR
+        new_value = current_value ^ change;
+        a_reg.* = new_value;
+        flags.n = 0;
+        flags.h = 0;
+        flags.c = 0;
     } else if (y == 7) {
         // CP
         const result = @subWithOverflow(current_value, change);
         new_value = result[0];
         flags.c = result[1];
         flags.n = 1;
-        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
         flags.h = half_result[1];
     } else {
         std.debug.panic("Not implemented: {s}", .{register});
@@ -605,8 +652,11 @@ fn xor_r(cpu: *Cpu, op_code: u8) void {
     const register_index = op_code & 7;
     const register = reg_8[register_index];
     cpu.print("XOR A,{s}\n", .{register});
-    // std.debug.panic("Not implemented", .{});
-    a_reg.* = reg_8_t[register_index].* ^ a_reg.*;
+    var source = reg_8_t[register_index];
+    if (register_index == 6) {
+        source = &cpu.memory[hl.full];
+    }
+    a_reg.* = source.* ^ a_reg.*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -652,7 +702,12 @@ fn rla(cpu: *Cpu, _: u8) void {
 
 fn rra(cpu: *Cpu, _: u8) void {
     cpu.print("RRA\n", .{});
-    std.debug.panic("Not implemented", .{});
+    const old_c: u8 = flags.c;
+    flags.c = @truncate(a_reg.* & 0x1);
+    a_reg.* = (a_reg.* >> 1) | (old_c << 7);
+    flags.n = 0;
+    flags.h = 0;
+    flags.z = 0;
 }
 
 fn daa(cpu: *Cpu, _: u8) void {
@@ -705,14 +760,56 @@ fn cb_prefix(cpu: *Cpu, _: u8) void {
         const operation = reg_rot[y];
         const register = reg_8[z];
         cpu.print("{s} {s}\n", .{ operation, register });
-        std.debug.panic("Not implemented", .{});
+        var data_pointer = reg_8_t[z];
+        if (z == 6) {
+            data_pointer = &cpu.memory[hl.full];
+        }
+        if (y == 3) {
+            // RR
+            const old_c: u8 = flags.c;
+            flags.c = @truncate(data_pointer.* & 0x1);
+            data_pointer.* = (data_pointer.* >> 1) | (old_c << 7);
+            flags.n = 0;
+            flags.h = 0;
+            if (data_pointer.* == 0) {
+                flags.z = 1;
+            } else {
+                flags.z = 0;
+            }
+        } else if (y == 4) {
+            // SLA
+            const result = @shlWithOverflow(data_pointer.*, 0x1);
+            flags.c = result[1];
+            data_pointer.* = result[0];
+            flags.n = 0;
+            flags.h = 0;
+            if (data_pointer.* == 0) {
+                flags.z = 1;
+            } else {
+                flags.z = 0;
+            }
+        } else if (y == 7) {
+            // SRL
+            flags.c = @truncate(data_pointer.* & 0x1);
+            // cpu.print("c:{x}\n", .{flags.c});
+            data_pointer.* = data_pointer.* >> 1;
+            flags.n = 0;
+            flags.h = 0;
+            if (data_pointer.* == 0) {
+                flags.z = 1;
+            } else {
+                flags.z = 0;
+            }
+        } else {
+            std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
+        }
     } else if (x == 1) {
         const register = reg_8[z];
         cpu.print("BIT {d},{s}\n", .{ y, register });
-        std.debug.panic("Not implemented", .{});
+        std.debug.panic("BIT Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
     } else {
         cpu.print("NOP CB\n", .{});
-        std.debug.panic("Not implemented", .{});
+        std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
     }
 }
 
