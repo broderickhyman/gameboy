@@ -118,6 +118,13 @@ const Cpu = struct {
         self.print(" - {d}", .{self.counter});
         try self.std_out.print("\n", .{});
     }
+    fn getRegDataPointer(self: *Cpu, index: u8) *u8 {
+        var data_pointer = reg_8_t[index];
+        if (index == 6) {
+            data_pointer = &self.memory[hl.full];
+        }
+        return data_pointer;
+    }
 };
 
 const SplitRegister = packed struct { lo: u8, hi: u8 };
@@ -162,7 +169,7 @@ fn ld_r_n8(cpu: *Cpu, op_code: u8) void {
     const register = reg_8[y];
     const value = cpu.read();
     cpu.print("LD {s},${x:04}\n", .{ register, value });
-    reg_8_t[y].* = value;
+    cpu.getRegDataPointer(y).* = value;
 }
 
 fn ld_r_r(cpu: *Cpu, op_code: u8) void {
@@ -171,15 +178,7 @@ fn ld_r_r(cpu: *Cpu, op_code: u8) void {
     const register1 = reg_8[y];
     const register2 = reg_8[z];
     cpu.print("LD {s},{s}\n", .{ register1, register2 });
-    var source = reg_8_t[z].*;
-    var destination = reg_8_t[y];
-    if (z == 6) {
-        source = cpu.memory[hl.full];
-    }
-    if (y == 6) {
-        destination = &cpu.memory[hl.full];
-    }
-    destination.* = source;
+    cpu.getRegDataPointer(y).* = cpu.getRegDataPointer(z).*;
 }
 
 fn ld_bc_a(cpu: *Cpu, _: u8) void {
@@ -321,23 +320,23 @@ fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
 }
 
 fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
-    const y = op_code >> 3 & 0b111 - 4;
-    const condition = reg_cc[y];
+    const y_offset = op_code >> 3 & 0b111 - 4;
+    const condition = reg_cc[y_offset];
     const displacement = cpu.read();
 
     const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("JR {s},Addr_{x:04}\n", .{ condition, address });
-    if (y == 0) {
+    if (y_offset == 0) {
         // NZ
         if (flags.z == 0) {
             cpu.pc = address;
         }
-    } else if (y == 1) {
+    } else if (y_offset == 1) {
         // Z
         if (flags.z != 0) {
             cpu.pc = address;
         }
-    } else if (y == 2) {
+    } else if (y_offset == 2) {
         // NC
         if (flags.c == 0) {
             cpu.pc = address;
@@ -446,14 +445,15 @@ fn inc_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     cpu.print("INC {s}\n", .{register});
-    var value: u8 = reg_8_t[y].*;
+    const data_pointer = cpu.getRegDataPointer(y);
+    var value: u8 = data_pointer.*;
     const overflow = value >> 4 & 1;
     if (value == 0xFF) {
         value = 0;
     } else {
         value += 1;
     }
-    reg_8_t[y].* = value;
+    data_pointer.* = value;
     if (value == 0) {
         flags.z = 1;
     } else {
@@ -479,10 +479,7 @@ fn dec_r(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     cpu.print("DEC {s}\n", .{register});
-    var data_pointer = reg_8_t[y];
-    if (y == 6) {
-        data_pointer = &cpu.memory[hl.full];
-    }
+    const data_pointer = cpu.getRegDataPointer(y);
     const current_value = data_pointer.*;
     const result = @subWithOverflow(current_value, 1);
     data_pointer.* = result[0];
@@ -632,12 +629,7 @@ fn or_r(cpu: *Cpu, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
     cpu.print("OR A,{s}\n", .{register});
-    if (z == 6) {
-        // OR (HL)
-        a_reg.* = a_reg.* | cpu.memory[hl.full];
-    } else {
-        a_reg.* = a_reg.* | reg_8_t[z].*;
-    }
+    a_reg.* = a_reg.* | cpu.getRegDataPointer(z).*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -649,14 +641,10 @@ fn or_r(cpu: *Cpu, op_code: u8) void {
 }
 
 fn xor_r(cpu: *Cpu, op_code: u8) void {
-    const register_index = op_code & 7;
-    const register = reg_8[register_index];
+    const z = op_code & 0b111;
+    const register = reg_8[z];
     cpu.print("XOR A,{s}\n", .{register});
-    var source = reg_8_t[register_index];
-    if (register_index == 6) {
-        source = &cpu.memory[hl.full];
-    }
-    a_reg.* = source.* ^ a_reg.*;
+    a_reg.* = cpu.getRegDataPointer(z).* ^ a_reg.*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -760,10 +748,7 @@ fn cb_prefix(cpu: *Cpu, _: u8) void {
         const operation = reg_rot[y];
         const register = reg_8[z];
         cpu.print("{s} {s}\n", .{ operation, register });
-        var data_pointer = reg_8_t[z];
-        if (z == 6) {
-            data_pointer = &cpu.memory[hl.full];
-        }
+        const data_pointer = cpu.getRegDataPointer(z);
         if (y == 3) {
             // RR
             const old_c: u8 = flags.c;
