@@ -1,9 +1,10 @@
 // /home/broderick/code/zig/gameboy/zig-out/bin/gameboy | /home/broderick/code/zig/gameboy/../gameboy-doctor/gameboy-doctor - cpu_instrs 7
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    var main_memory: [0xFFFF]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&main_memory);
+    @memset(&main_memory, 0);
+    const allocator = fba.allocator();
 
     const std_out = std.io.getStdOut().writer();
 
@@ -22,16 +23,10 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ file_name, .{});
     defer file.close();
 
-    const main_memory = try allocator.alloc(u8, 0xFFFF);
-    defer allocator.free(main_memory);
-
-    _ = try file.readAll(main_memory);
+    _ = try file.readAll(&main_memory);
 
     // LCD Hardcode
     main_memory[0xFF44] = 0x90;
-
-    // var cpu = Cpu{ .memory = main_memory, .index = 0 };
-    // var cpu = Cpu{ .memory = main_memory, .index = 0x008f };
 
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
@@ -43,7 +38,7 @@ pub fn main() !void {
 
     // zig fmt: off
     var cpu = Cpu{
-        .memory = main_memory,
+        .memory = &main_memory,
         .pc = 0x0100,
         .counter = 1,
         .should_print = false,
@@ -69,12 +64,10 @@ pub fn main() !void {
         // const z = op_code & 0b111;
         // const p = y >> 1;
         // const q = y & 1;
-        // cpu.print("{d:>2} {d:>2}\n", .{ first, second });
-        // cpu.print("${x:04} - ", .{cpu.pc - 1});
-        // cpu.print("{X:02}\n", .{op_code});
 
-        // if (verbose and cpu.counter == 31450) {
-        if (verbose and cpu.counter == 32509) {
+        if (verbose and cpu.counter == 190876) {
+            // if (verbose and cpu.pc == 0xdefb) {
+            // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
             @breakpoint();
         }
@@ -121,6 +114,7 @@ const Cpu = struct {
     fn getRegDataPointer(self: *Cpu, index: u8) *u8 {
         var data_pointer = reg_8_t[index];
         if (index == 6) {
+            breakOnAddress(hl.full);
             data_pointer = &self.memory[hl.full];
         }
         return data_pointer;
@@ -143,6 +137,22 @@ var hl = Register{ .full = 0x014d };
 var sp: u16 = 0xfffe;
 const a_reg = &af.sp.a;
 const flags = &af.sp.flag.sp;
+
+fn breakOnAddress(address: u16) void {
+    // if (address == 57083) {
+    //     @breakpoint();
+    // } else if (address == 57084) {
+    //     @breakpoint();
+    if (address == 57085) {
+        // @breakpoint();
+    }
+    if (address == 57086) {
+        // @breakpoint();
+    }
+    if (address == 57087) {
+        // @breakpoint();
+    }
+}
 
 fn nop(_: *Cpu, _: u8) void {
     // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});
@@ -183,11 +193,13 @@ fn ld_r_r(cpu: *Cpu, op_code: u8) void {
 
 fn ld_bc_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (BC),A\n", .{});
+    breakOnAddress(bc.full);
     cpu.memory[bc.full] = a_reg.*;
 }
 
 fn ld_de_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (DE),A\n", .{});
+    breakOnAddress(de.full);
     cpu.memory[de.full] = a_reg.*;
 }
 
@@ -203,12 +215,14 @@ fn ld_a_de(cpu: *Cpu, _: u8) void {
 
 fn ld_hli_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL+),A\n", .{});
+    breakOnAddress(hl.full);
     cpu.memory[hl.full] = a_reg.*;
     hl.full += 1;
 }
 
 fn ld_hld_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL-),A\n", .{});
+    breakOnAddress(hl.full);
     cpu.memory[hl.full] = a_reg.*;
     hl.full -= 1;
 }
@@ -229,6 +243,7 @@ fn ld_a16_a(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD (${X:04}),A\n", .{address});
+    breakOnAddress(address);
     cpu.memory[address] = a_reg.*;
 }
 
@@ -243,7 +258,10 @@ fn ld_a16_sp(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD ${X:04},SP\n", .{address});
-    std.debug.panic("Not implemented", .{});
+    breakOnAddress(address);
+    breakOnAddress(address + 1);
+    cpu.memory[address] = @truncate(sp);
+    cpu.memory[address + 1] = @truncate(sp >> 8);
 }
 
 fn ldh_c_a(cpu: *Cpu, _: u8) void {
@@ -263,8 +281,8 @@ fn ldh_a8_a(cpu: *Cpu, _: u8) void {
     }
     cpu.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
-    // std.debug.panic("Not implemented", .{});
     if (address > 0xFF00 and address < 0xFFFF) {
+        breakOnAddress(address);
         cpu.memory[address] = a_reg.*;
     }
 }
@@ -276,13 +294,12 @@ fn ldh_a_a8(cpu: *Cpu, _: u8) void {
     // }
     cpu.print("LD A,($FF00+${X})\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
-    // std.debug.panic("Not implemented", .{});
     a_reg.* = cpu.memory[address];
 }
 
 fn ld_sp_hl(cpu: *Cpu, _: u8) void {
     cpu.print("LD SP,HL\n", .{});
-    std.debug.panic("Not implemented", .{});
+    sp = hl.full;
 }
 
 fn ld_hl_sp_e8(cpu: *Cpu, _: u8) void {
@@ -412,7 +429,7 @@ fn jp_cc_a16(cpu: *Cpu, op_code: u8) void {
 
 fn jp_hl(cpu: *Cpu, _: u8) void {
     cpu.print("JP HL\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.pc = hl.full;
 }
 
 fn rst(cpu: *Cpu, op_code: u8) void {
@@ -425,8 +442,10 @@ fn rst(cpu: *Cpu, op_code: u8) void {
 fn push(cpu: *Cpu, value: u16) void {
     // cpu.print("{X:04}\n", .{cpu.pc});
     sp -= 1;
+    breakOnAddress(sp);
     cpu.memory[sp] = @truncate(value);
     sp -= 1;
+    breakOnAddress(sp);
     cpu.memory[sp] = @truncate(value >> 8);
     // cpu.print("{X:02} {X:02}\n", .{ cpu.memory[sp], cpu.memory[sp + 1] });
 }
@@ -511,7 +530,13 @@ fn add_hl_rp(cpu: *Cpu, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
     cpu.print("ADD HL,{s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    const current_value = reg_p_t[p].*;
+    const result = @addWithOverflow(hl.full, current_value);
+    const half_result = @addWithOverflow(@as(u12, @truncate(hl.full)), @as(u12, @truncate(current_value)));
+    hl.full = result[0];
+    flags.n = 0;
+    flags.h = half_result[1];
+    flags.c = result[1];
 }
 
 fn add_sp_e8(cpu: *Cpu, _: u8) void {
