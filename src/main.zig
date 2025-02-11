@@ -126,6 +126,9 @@ const Cpu = struct {
             @breakpoint();
         }
     }
+    fn checkCondition(_: *Cpu, index: u8) bool {
+        return (index == 0 and flags.z == 0) or (index == 1 and flags.z != 0) or (index == 2 and flags.c == 0) or (index == 3 and flags.c != 0);
+    }
 };
 
 const SplitRegister = packed struct { lo: u8, hi: u8 };
@@ -311,19 +314,14 @@ fn call_a16(cpu: *Cpu, _: u8) void {
 }
 
 fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
-    const register_index = op_code & 3;
-    const condition = reg_cc[register_index];
+    const y = op_code >> 3 & 0b111;
+    const condition = reg_cc[y];
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("CALL {s},${X:04}\n", .{ condition, address });
-    if (register_index == 0) {
-        // NZ
-        if (flags.z == 0) {
-            push(cpu, cpu.pc);
-            cpu.pc = address;
-        }
-    } else {
-        std.debug.panic("Not implemented {s}", .{condition});
+    if (cpu.checkCondition(y)) {
+        push(cpu, cpu.pc);
+        cpu.pc = address;
     }
 }
 
@@ -331,29 +329,10 @@ fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
     const y_offset = op_code >> 3 & 0b111 - 4;
     const condition = reg_cc[y_offset];
     const displacement = cpu.read();
-
     const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
     cpu.print("JR {s},Addr_{x:04}\n", .{ condition, address });
-    if (y_offset == 0) {
-        // NZ
-        if (flags.z == 0) {
-            cpu.pc = address;
-        }
-    } else if (y_offset == 1) {
-        // Z
-        if (flags.z != 0) {
-            cpu.pc = address;
-        }
-    } else if (y_offset == 2) {
-        // NC
-        if (flags.c == 0) {
-            cpu.pc = address;
-        }
-    } else {
-        // C
-        if (flags.c != 0) {
-            cpu.pc = address;
-        }
+    if (cpu.checkCondition(y_offset)) {
+        cpu.pc = address;
     }
 }
 
@@ -378,26 +357,8 @@ fn ret_cc(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const condition = reg_cc[y];
     cpu.print("RET {s}\n", .{condition});
-    if (y == 0) {
-        // NZ
-        if (flags.z == 0) {
-            ret(cpu, 0);
-        }
-    } else if (y == 1) {
-        // Z
-        if (flags.z != 0) {
-            ret(cpu, 0);
-        }
-    } else if (y == 2) {
-        // NC
-        if (flags.c == 0) {
-            ret(cpu, 0);
-        }
-    } else {
-        // C
-        if (flags.c != 0) {
-            ret(cpu, 0);
-        }
+    if (cpu.checkCondition(y)) {
+        ret(cpu, 0);
     }
 }
 
@@ -409,13 +370,15 @@ fn jp_a16(cpu: *Cpu, _: u8) void {
 }
 
 fn jp_cc_a16(cpu: *Cpu, op_code: u8) void {
-    const register_index = op_code & 3;
-    const condition = reg_cc[register_index];
+    const y = op_code >> 3 & 0b111;
+    const condition = reg_cc[y];
 
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("JP {s},Addr_{x:04}\n", .{ condition, address });
-    std.debug.panic("Not implemented", .{});
+    if (cpu.checkCondition(y)) {
+        cpu.pc = address;
+    }
 }
 
 fn jp_hl(cpu: *Cpu, _: u8) void {
