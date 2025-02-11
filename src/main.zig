@@ -348,9 +348,10 @@ fn ret(cpu: *Cpu, _: u8) void {
     cpu.pc = pop(cpu);
 }
 
-fn reti(cpu: *Cpu, _: u8) void {
+fn reti(cpu: *Cpu, op_code: u8) void {
     cpu.print("RETI\n", .{});
-    std.debug.panic("Not implemented", .{});
+    ei(cpu, op_code);
+    ret(cpu, op_code);
 }
 
 fn ret_cc(cpu: *Cpu, op_code: u8) void {
@@ -711,13 +712,11 @@ fn halt(cpu: *Cpu, _: u8) void {
 }
 
 fn di(cpu: *Cpu, _: u8) void {
-    cpu.print("HALT\n", .{});
-    // std.debug.panic("Not implemented", .{});
+    cpu.print("DI\n", .{});
 }
 
 fn ei(cpu: *Cpu, _: u8) void {
-    cpu.print("HALT\n", .{});
-    std.debug.panic("Not implemented", .{});
+    cpu.print("EI\n", .{});
 }
 
 // CB
