@@ -8,18 +8,18 @@ pub fn main() !void {
     const std_out = std.io.getStdOut().writer();
 
     // const file = try std.fs.cwd().openFile("roms/dmg_boot.bin", .{});
-    // const fileName = "01-special.gb";
-    // const fileName = "02-interrupts.gb";
-    // const fileName = "03-op sp,hl.gb";
-    // const fileName = "04-op r,imm.gb";
-    // const fileName = "05-op rp.gb";
-    // const fileName = "06-ld r,r.gb";
-    const fileName = "07-jr,jp,call,ret,rst.gb";
-    // const fileName = "08-misc instrs.gb";
-    // const fileName = "09-op r,r.gb";
-    // const fileName = "10-bit ops.gb";
-    // const fileName = "11-op a,(hl).gb";
-    const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ fileName, .{});
+    // const file_name = "01-special.gb";
+    // const file_name = "02-interrupts.gb";
+    // const file_name = "03-op sp,hl.gb";
+    // const file_name = "04-op r,imm.gb";
+    // const file_name = "05-op rp.gb";
+    // const file_name = "06-ld r,r.gb";
+    const file_name = "07-jr,jp,call,ret,rst.gb";
+    // const file_name = "08-misc instrs.gb";
+    // const file_name = "09-op r,r.gb";
+    // const file_name = "10-bit ops.gb";
+    // const file_name = "11-op a,(hl).gb";
+    const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ file_name, .{});
     defer file.close();
 
     const main_memory = try allocator.alloc(u8, 0xFFFF);
@@ -46,8 +46,8 @@ pub fn main() !void {
         .memory = main_memory,
         .pc = 0x0100,
         .counter = 1,
-        .shouldPrint = false,
-        .stdOut = std_out
+        .should_print = false,
+        .std_out = std_out
         };
     // zig fmt: on
 
@@ -75,7 +75,7 @@ pub fn main() !void {
 
         // if (verbose and cpu.counter == 31450) {
         if (verbose and cpu.counter == 32509) {
-            cpu.shouldPrint = true;
+            cpu.should_print = true;
             @breakpoint();
         }
 
@@ -91,8 +91,8 @@ const Cpu = struct {
     memory: []u8,
     pc: u16,
     counter: u32,
-    shouldPrint: bool,
-    stdOut: std.fs.File.Writer,
+    should_print: bool,
+    std_out: std.fs.File.Writer,
     fn read(self: *Cpu) u8 {
         const memory_value = self.memory[self.pc];
         self.pc += 1;
@@ -102,11 +102,11 @@ const Cpu = struct {
         self.print("Current Index: {0d} {0x}\n", .{self.pc});
     }
     fn print(self: *Cpu, comptime fmt: []const u8, args: anytype) void {
-        if (self.shouldPrint) {
+        if (self.should_print) {
             std.debug.print(fmt, args);
         }
     }
-    fn print_flags(self: *Cpu) void {
+    fn printFlags(self: *Cpu) void {
         self.print("{b}\n", .{af.sp.flag.full});
         self.print("c: {b}\n", .{flags.c});
         self.print("h: {b}\n", .{flags.h});
@@ -114,9 +114,9 @@ const Cpu = struct {
         self.print("z: {b}\n", .{flags.z});
     }
     fn logState(self: *Cpu) !void {
-        try self.stdOut.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
+        try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
         self.print(" - {d}", .{self.counter});
-        try self.stdOut.print("\n", .{});
+        try self.std_out.print("\n", .{});
     }
 };
 
@@ -144,7 +144,7 @@ fn nop(_: *Cpu, _: u8) void {
     // std.debug.panic("", .{});
 }
 
-fn un_nop(_: *Cpu, _: u8) void {}
+fn nop_vd(_: *Cpu, _: u8) void {}
 
 // Load
 
@@ -863,12 +863,12 @@ const op_lookup = [256] *const fn (*Cpu, u8) void {
     cp_r,        cp_r,      cp_r,      cp_r,      cp_r,        cp_r,     cp_r,    cp_r,  
     ret_cc,      pop_rp2,   jp_cc_a16, jp_a16,    call_cc_a16, push_rp2, alu_n8,  rst,    // C
     ret_cc,      ret,       jp_cc_a16, cb_prefix, call_cc_a16, call_a16, alu_n8,  rst,   
-    ret_cc,      pop_rp2,   jp_cc_a16, un_nop,    call_cc_a16, push_rp2, alu_n8,  rst,    // D
-    ret_cc,      reti,      jp_cc_a16, un_nop,    call_cc_a16, un_nop,   alu_n8,  rst,   
-    ldh_a8_a,    pop_rp2,   ldh_c_a,   un_nop,    un_nop,      push_rp2, alu_n8,  rst,    // E
-    add_sp_e8,   jp_hl,     ld_a16_a,  un_nop,    un_nop,      un_nop,   alu_n8,  rst,   
-    ldh_a_a8,    pop_rp2,   ldh_a_c,   di,        un_nop,      push_rp2, alu_n8,  rst,    // F
-    ld_hl_sp_e8, ld_sp_hl,  ld_a_a16,  ei,        un_nop,      un_nop,   alu_n8,  rst
+    ret_cc,      pop_rp2,   jp_cc_a16, nop_vd,    call_cc_a16, push_rp2, alu_n8,  rst,    // D
+    ret_cc,      reti,      jp_cc_a16, nop_vd,    call_cc_a16, nop_vd,   alu_n8,  rst,   
+    ldh_a8_a,    pop_rp2,   ldh_c_a,   nop_vd,    nop_vd,      push_rp2, alu_n8,  rst,    // E
+    add_sp_e8,   jp_hl,     ld_a16_a,  nop_vd,    nop_vd,      nop_vd,   alu_n8,  rst,   
+    ldh_a_a8,    pop_rp2,   ldh_a_c,   di,        nop_vd,      push_rp2, alu_n8,  rst,    // F
+    ld_hl_sp_e8, ld_sp_hl,  ld_a_a16,  ei,        nop_vd,      nop_vd,   alu_n8,  rst
     };
 // zig fmt: on
 
