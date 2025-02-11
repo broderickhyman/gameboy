@@ -46,7 +46,7 @@ pub fn main() !void {
         .memory = main_memory,
         .pc = 0x0100,
         .counter = 1,
-        .shouldPrint = verbose,
+        .shouldPrint = false,
         .stdOut = std_out
         };
     // zig fmt: on
@@ -73,7 +73,9 @@ pub fn main() !void {
         // cpu.print("${x:04} - ", .{cpu.pc - 1});
         // cpu.print("{X:02}\n", .{op_code});
 
-        if (verbose and cpu.counter == 31435) {
+        // if (verbose and cpu.counter == 31450) {
+        if (verbose and cpu.counter == 31343) {
+            cpu.shouldPrint = true;
             @breakpoint();
         }
 
@@ -523,59 +525,43 @@ fn cp_r(cpu: *Cpu, op_code: u8) void {
 fn alu_n8(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    const change: u8 = cpu.read();
-    const current_value: i10 = a_reg.*;
+    const change = cpu.read();
+    const current_value = a_reg.*;
     cpu.print("{s} A,${X:02}\n", .{ register, change });
-    const overflow_h = current_value >> 3 & 1;
-    const overflow_c = current_value >> 7 & 1;
-    var new_value: i10 = current_value;
+    var new_value = current_value;
     if (y == 0) {
         // ADD
-        new_value += change;
-        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        const result = @addWithOverflow(current_value, change);
+        new_value = result[0];
+        a_reg.* = new_value;
+        flags.c = result[1];
         flags.n = 0;
-        const new_overflow_c = new_value >> 7 & 1;
-        if (new_overflow_c != overflow_c) {
-            flags.c = 1;
-        } else {
-            flags.c = 0;
-        }
-        const new_overflow_h = new_value >> 3 & 1;
-        if (new_overflow_h != overflow_h) {
-            flags.h = 1;
-        } else {
-            flags.h = 0;
-        }
+        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        flags.h = half_result[1];
     } else if (y == 2) {
         // SUB
-        new_value -= change;
-        flags.c = @intFromBool(change > current_value);
-        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        const result = @subWithOverflow(current_value, change);
+        flags.c = result[1];
+        new_value = result[0];
+        a_reg.* = new_value;
         flags.n = 1;
-        const new_overflow_h = new_value >> 3 & 1;
-        if (new_overflow_h != overflow_h) {
-            flags.h = 1;
-        } else {
-            flags.h = 0;
-        }
+        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        flags.h = half_result[1];
     } else if (y == 4) {
         // AND
         new_value = current_value & change;
-        a_reg.* = @truncate(@as(u10, @bitCast(new_value)));
+        a_reg.* = new_value;
         flags.n = 0;
         flags.h = 1;
         flags.c = 0;
     } else if (y == 7) {
         // CP
-        new_value -= change;
+        const result = @subWithOverflow(current_value, change);
+        new_value = result[0];
+        flags.c = result[1];
         flags.n = 1;
-        flags.c = @intFromBool(change > current_value);
-        const new_overflow_h = new_value >> 3 & 1;
-        if (new_overflow_h != overflow_h) {
-            flags.h = 1;
-        } else {
-            flags.h = 0;
-        }
+        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)),@as(u4,  @truncate(change)));
+        flags.h = half_result[1];
     } else {
         std.debug.panic("Not implemented: {s}", .{register});
     }
