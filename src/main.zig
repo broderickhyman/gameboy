@@ -42,6 +42,7 @@ pub fn main() !void {
         .pc = 0x0100,
         .counter = 1,
         .should_print = false,
+        .should_break = verbose,
         .std_out = std_out
         };
     // zig fmt: on
@@ -65,7 +66,7 @@ pub fn main() !void {
         // const p = y >> 1;
         // const q = y & 1;
 
-        if (verbose and cpu.counter == 190876) {
+        if (verbose and cpu.counter == 190946) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
@@ -85,6 +86,7 @@ const Cpu = struct {
     pc: u16,
     counter: u32,
     should_print: bool,
+    should_break: bool,
     std_out: std.fs.File.Writer,
     fn read(self: *Cpu) u8 {
         const memory_value = self.memory[self.pc];
@@ -114,10 +116,15 @@ const Cpu = struct {
     fn getRegDataPointer(self: *Cpu, index: u8) *u8 {
         var data_pointer = reg_8_t[index];
         if (index == 6) {
-            breakOnAddress(hl.full);
+            self.breakOnAddress(hl.full);
             data_pointer = &self.memory[hl.full];
         }
         return data_pointer;
+    }
+    fn breakOnAddress(self: *Cpu, address: u16) void {
+        if (self.should_break and address == 0xDF7E) {
+            @breakpoint();
+        }
     }
 };
 
@@ -137,22 +144,6 @@ var hl = Register{ .full = 0x014d };
 var sp: u16 = 0xfffe;
 const a_reg = &af.sp.a;
 const flags = &af.sp.flag.sp;
-
-fn breakOnAddress(address: u16) void {
-    // if (address == 57083) {
-    //     @breakpoint();
-    // } else if (address == 57084) {
-    //     @breakpoint();
-    if (address == 57085) {
-        // @breakpoint();
-    }
-    if (address == 57086) {
-        // @breakpoint();
-    }
-    if (address == 57087) {
-        // @breakpoint();
-    }
-}
 
 fn nop(_: *Cpu, _: u8) void {
     // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});
@@ -193,13 +184,13 @@ fn ld_r_r(cpu: *Cpu, op_code: u8) void {
 
 fn ld_bc_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (BC),A\n", .{});
-    breakOnAddress(bc.full);
+    cpu.breakOnAddress(bc.full);
     cpu.memory[bc.full] = a_reg.*;
 }
 
 fn ld_de_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (DE),A\n", .{});
-    breakOnAddress(de.full);
+    cpu.breakOnAddress(de.full);
     cpu.memory[de.full] = a_reg.*;
 }
 
@@ -215,14 +206,14 @@ fn ld_a_de(cpu: *Cpu, _: u8) void {
 
 fn ld_hli_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL+),A\n", .{});
-    breakOnAddress(hl.full);
+    cpu.breakOnAddress(hl.full);
     cpu.memory[hl.full] = a_reg.*;
     hl.full += 1;
 }
 
 fn ld_hld_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD (HL-),A\n", .{});
-    breakOnAddress(hl.full);
+    cpu.breakOnAddress(hl.full);
     cpu.memory[hl.full] = a_reg.*;
     hl.full -= 1;
 }
@@ -243,14 +234,14 @@ fn ld_a16_a(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD (${X:04}),A\n", .{address});
-    breakOnAddress(address);
+    cpu.breakOnAddress(address);
     cpu.memory[address] = a_reg.*;
 }
 
 fn ld_a_a16(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("LD A,${X:04},A\n", .{address});
+    cpu.print("LD A,(${X:04})\n", .{address});
     a_reg.* = cpu.memory[address];
 }
 
@@ -258,8 +249,8 @@ fn ld_a16_sp(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD ${X:04},SP\n", .{address});
-    breakOnAddress(address);
-    breakOnAddress(address + 1);
+    cpu.breakOnAddress(address);
+    cpu.breakOnAddress(address + 1);
     cpu.memory[address] = @truncate(sp);
     cpu.memory[address + 1] = @truncate(sp >> 8);
 }
@@ -282,7 +273,7 @@ fn ldh_a8_a(cpu: *Cpu, _: u8) void {
     cpu.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
     if (address > 0xFF00 and address < 0xFFFF) {
-        breakOnAddress(address);
+        cpu.breakOnAddress(address);
         cpu.memory[address] = a_reg.*;
     }
 }
@@ -442,18 +433,22 @@ fn rst(cpu: *Cpu, op_code: u8) void {
 fn push(cpu: *Cpu, value: u16) void {
     // cpu.print("{X:04}\n", .{cpu.pc});
     sp -= 1;
-    breakOnAddress(sp);
-    cpu.memory[sp] = @truncate(value);
-    sp -= 1;
-    breakOnAddress(sp);
+    cpu.breakOnAddress(sp);
+    // cpu.memory[sp] = @truncate(value);
     cpu.memory[sp] = @truncate(value >> 8);
+    sp -= 1;
+    cpu.breakOnAddress(sp);
+    // cpu.memory[sp] = @truncate(value >> 8);
+    cpu.memory[sp] = @truncate(value);
     // cpu.print("{X:02} {X:02}\n", .{ cpu.memory[sp], cpu.memory[sp + 1] });
 }
 
 fn pop(cpu: *Cpu) u16 {
-    var new_value: u16 = @as(u16, cpu.memory[sp]) << 8;
+    // var new_value: u16 = @as(u16, cpu.memory[sp]) << 8;
+    var new_value: u16 = @as(u16, cpu.memory[sp]);
     sp += 1;
-    new_value = new_value | @as(u16, cpu.memory[sp]);
+    // new_value = new_value | @as(u16, cpu.memory[sp]);
+    new_value = new_value | (@as(u16, cpu.memory[sp]) << 8);
     sp += 1;
     return new_value;
 }
