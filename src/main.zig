@@ -1,10 +1,11 @@
 // /home/broderick/code/zig/gameboy/zig-out/bin/gameboy | /home/broderick/code/zig/gameboy/../gameboy-doctor/gameboy-doctor - cpu_instrs 7
 
 pub fn main() !void {
-    var main_memory: [0xFFFF]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&main_memory);
-    @memset(&main_memory, 0);
-    const allocator = fba.allocator();
+    var buffer: [0xFFFF]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const fba_allocator = fba.allocator();
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const gpa_allocator = gpa.allocator();
 
     const std_out = std.io.getStdOut().writer();
 
@@ -23,13 +24,16 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ file_name, .{});
     defer file.close();
 
-    _ = try file.readAll(&main_memory);
+    const main_memory = try fba_allocator.alloc(u8, 0xFFFF);
+    defer fba_allocator.free(main_memory);
+    @memset(main_memory, 0);
+    _ = try file.readAll(main_memory);
 
     // LCD Hardcode
     main_memory[0xFF44] = 0x90;
 
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    const args = try std.process.argsAlloc(gpa_allocator);
+    defer std.process.argsFree(gpa_allocator, args);
     // std.debug.print("${s}\n", .{args});
     var verbose = false;
     if (args.len > 1 and std.mem.eql(u8, args[1], "--verbose")) {
@@ -38,7 +42,7 @@ pub fn main() !void {
 
     // zig fmt: off
     var cpu = Cpu{
-        .memory = &main_memory,
+        .memory = main_memory,
         .pc = 0x0100,
         .counter = 1,
         .should_print = false,
@@ -48,10 +52,6 @@ pub fn main() !void {
     // zig fmt: on
 
     const end = 500000;
-    // const end = cpu.index + 500;
-    // const end = cpu.memory.len;
-    // var index: u32 = 0x100;
-    // const end = 0x100 + 50;
 
     try cpu.logState();
     // cpu.print_flags();
@@ -66,7 +66,7 @@ pub fn main() !void {
         // const p = y >> 1;
         // const q = y & 1;
 
-        if (verbose and cpu.counter == 190946) {
+        if (verbose and cpu.counter == 254074) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
@@ -75,7 +75,9 @@ pub fn main() !void {
 
         op_lookup[op_code](&cpu, op_code);
         cpu.counter += 1;
-        try cpu.logState();
+        if (!verbose or cpu.should_print) {
+            try cpu.logState();
+        }
         // cpu.print_flags();
         // cpu.print("\n", .{});
     }
@@ -122,8 +124,15 @@ const Cpu = struct {
         return data_pointer;
     }
     fn breakOnAddress(self: *Cpu, address: u16) void {
-        if (self.should_break and address == 0xDF7E) {
+        // if (self.should_break and address == 0xDF7E) {
+        if (self.should_break and address == 0xDF7C) {
             @breakpoint();
+        }
+    }
+    fn breakOnAddressAndValue(self: *Cpu, address: u16, value: u8) void {
+        if (self.counter > 254000 and self.should_break and address == 0xDF7C and value == 0xFB) {
+            @breakpoint();
+            self.should_print = true;
         }
     }
     fn checkCondition(_: *Cpu, index: u8) bool {
@@ -139,7 +148,6 @@ const FlagRegisterUnion = packed union { full: u8, sp: FlagRegister };
 const AfRegister = packed struct { flag: FlagRegisterUnion, a: u8 };
 const AfRegisterFull = packed union { af: u16, sp: AfRegister };
 
-// var af = Register{ .f = 0x01b0 };
 var af = AfRegisterFull{ .af = 0x01b0 };
 var bc = Register{ .full = 0x0013 };
 var de = Register{ .full = 0x00d8 };
@@ -237,7 +245,7 @@ fn ld_a16_a(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("LD (${X:04}),A\n", .{address});
-    cpu.breakOnAddress(address);
+    cpu.breakOnAddressAndValue(address, a_reg.*);
     cpu.memory[address] = a_reg.*;
 }
 
@@ -305,12 +313,16 @@ fn ld_hl_sp_e8(cpu: *Cpu, _: u8) void {
 
 // Jumps
 
+fn call(cpu: *Cpu, address: u16) void {
+    push(cpu, cpu.pc);
+    cpu.pc = address;
+}
+
 fn call_a16(cpu: *Cpu, _: u8) void {
     const right = cpu.read();
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("CALL ${X:04}\n", .{address});
-    push(cpu, cpu.pc);
-    cpu.pc = address;
+    call(cpu, address);
 }
 
 fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
@@ -320,8 +332,7 @@ fn call_cc_a16(cpu: *Cpu, op_code: u8) void {
     const address: u16 = (@as(u16, cpu.read()) << 8) | right;
     cpu.print("CALL {s},${X:04}\n", .{ condition, address });
     if (cpu.checkCondition(y)) {
-        push(cpu, cpu.pc);
-        cpu.pc = address;
+        call(cpu, address);
     }
 }
 
@@ -391,27 +402,21 @@ fn rst(cpu: *Cpu, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const vec = y * 8;
     cpu.print("RST Addr_{x:04}\n", .{vec});
-    std.debug.panic("Not implemented", .{});
+    call(cpu, vec);
 }
 
 fn push(cpu: *Cpu, value: u16) void {
-    // cpu.print("{X:04}\n", .{cpu.pc});
     sp -= 1;
-    cpu.breakOnAddress(sp);
-    // cpu.memory[sp] = @truncate(value);
+    cpu.breakOnAddressAndValue(sp, @truncate(value >> 8));
     cpu.memory[sp] = @truncate(value >> 8);
     sp -= 1;
-    cpu.breakOnAddress(sp);
-    // cpu.memory[sp] = @truncate(value >> 8);
+    cpu.breakOnAddressAndValue(sp, @truncate(value));
     cpu.memory[sp] = @truncate(value);
-    // cpu.print("{X:02} {X:02}\n", .{ cpu.memory[sp], cpu.memory[sp + 1] });
 }
 
 fn pop(cpu: *Cpu) u16 {
-    // var new_value: u16 = @as(u16, cpu.memory[sp]) << 8;
     var new_value: u16 = @as(u16, cpu.memory[sp]);
     sp += 1;
-    // new_value = new_value | @as(u16, cpu.memory[sp]);
     new_value = new_value | (@as(u16, cpu.memory[sp]) << 8);
     sp += 1;
     return new_value;
@@ -758,7 +763,6 @@ fn cb_prefix(cpu: *Cpu, _: u8) void {
         } else if (y == 7) {
             // SRL
             flags.c = @truncate(data_pointer.* & 0x1);
-            // cpu.print("c:{x}\n", .{flags.c});
             data_pointer.* = data_pointer.* >> 1;
             flags.n = 0;
             flags.h = 0;
