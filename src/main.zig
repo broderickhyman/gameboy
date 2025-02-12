@@ -9,19 +9,38 @@ pub fn main() !void {
 
     const std_out = std.io.getStdOut().writer();
 
+    const args = try std.process.argsAlloc(gpa_allocator);
+    defer std.process.argsFree(gpa_allocator, args);
+    // std.debug.print("${s}\n", .{args});
+    var verbose = false;
+    var file_num: u4 = 7;
+    if (args.len > 1) {
+        file_num = try std.fmt.parseInt(u4, args[1], 10);
+    }
+    if (args.len > 2 and std.mem.eql(u8, args[2], "--verbose")) {
+        verbose = true;
+    }
+
     // const file = try std.fs.cwd().openFile("roms/dmg_boot.bin", .{});
-    // const file_name = "01-special.gb";
-    // const file_name = "02-interrupts.gb";
-    // const file_name = "03-op sp,hl.gb";
-    // const file_name = "04-op r,imm.gb";
-    // const file_name = "05-op rp.gb";
-    // const file_name = "06-ld r,r.gb";
-    const file_name = "07-jr,jp,call,ret,rst.gb";
-    // const file_name = "08-misc instrs.gb";
-    // const file_name = "09-op r,r.gb";
-    // const file_name = "10-bit ops.gb";
-    // const file_name = "11-op a,(hl).gb";
-    const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ file_name, .{});
+    const file_name: []const u8 = switch (file_num) {
+        1 => "01-special.gb",
+        2 => "02-interrupts.gb",
+        3 => "03-op sp,hl.gb",
+        4 => "04-op r,imm.gb",
+        5 => "05-op rp.gb",
+        6 => "06-ld r,r.gb",
+        7 => "07-jr,jp,call,ret,rst.gb",
+        8 => "08-misc instrs.gb",
+        9 => "09-op r,r.gb",
+        10 => "10-bit ops.gb",
+        11 => "11-op a,(hl).gb",
+        else => "",
+    };
+    var paths: [2][]const u8 = undefined;
+    paths[0] = "../gb-test-roms/cpu_instrs/individual/";
+    paths[1] = file_name;
+    const path = try std.fs.path.join(gpa_allocator, &paths);
+    const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
     const main_memory = try fba_allocator.alloc(u8, 0xFFFF + 1);
@@ -31,14 +50,6 @@ pub fn main() !void {
 
     // LCD Hardcode
     main_memory[0xFF44] = 0x90;
-
-    const args = try std.process.argsAlloc(gpa_allocator);
-    defer std.process.argsFree(gpa_allocator, args);
-    // std.debug.print("${s}\n", .{args});
-    var verbose = false;
-    if (args.len > 1 and std.mem.eql(u8, args[1], "--verbose")) {
-        verbose = true;
-    }
 
     // zig fmt: off
     var cpu = Cpu{
