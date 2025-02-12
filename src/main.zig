@@ -62,7 +62,7 @@ pub fn main() !void {
         };
     // zig fmt: on
 
-    const end = 500000;
+    const end: u32 = 1000000;
 
     if (!verbose or cpu.should_print) {
         try cpu.logState();
@@ -79,7 +79,7 @@ pub fn main() !void {
         // const p = y >> 1;
         // const q = y & 1;
 
-        if (verbose and cpu.counter == 587415) {
+        if (verbose and cpu.counter == 560000) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
@@ -97,11 +97,18 @@ pub fn main() !void {
             // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
             std.debug.print("{c}", .{serial_value});
             cpu.memory[0xFF01] = 0;
+            if (serial_value == 'd') {
+                // break;
+            }
         }
+        // if (cpu.memory[cpu.pc] == 0x18 and cpu.memory[cpu.pc + 1] == 0xFE) {
+        //     break;
+        // }
         // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
         // cpu.print_flags();
         // cpu.print("\n", .{});
     }
+    // std.debug.print("\nCount: {d}\n", .{cpu.counter});
 }
 
 const Cpu = struct {
@@ -134,6 +141,7 @@ const Cpu = struct {
     fn logState(self: *Cpu) !void {
         try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
         self.print(" - {d}", .{self.counter});
+        // try self.std_out.print(" - {d}", .{self.counter});
         try self.std_out.print("\n", .{});
     }
     fn getRegDataPointer(self: *Cpu, index: u8) *u8 {
@@ -372,8 +380,9 @@ fn jr_cc_e8(cpu: *Cpu, op_code: u8) void {
 
 fn jr_e8(cpu: *Cpu, _: u8) void {
     const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
-    cpu.print("JR Addr_{x:04}\n", .{address});
+    const jump = @as(i8, @bitCast(displacement));
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + jump));
+    cpu.print("JR Addr_{x:04} {x:02}\n", .{ address, jump });
     cpu.pc = address;
 }
 
