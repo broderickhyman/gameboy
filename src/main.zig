@@ -1,7 +1,7 @@
 // /home/broderick/code/zig/gameboy/zig-out/bin/gameboy | /home/broderick/code/zig/gameboy/../gameboy-doctor/gameboy-doctor - cpu_instrs 7
 
 pub fn main() !void {
-    var buffer: [0xFFFF]u8 = undefined;
+    var buffer: [0xFFFF + 1]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const fba_allocator = fba.allocator();
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -24,7 +24,7 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile("../gb-test-roms/cpu_instrs/individual/" ++ file_name, .{});
     defer file.close();
 
-    const main_memory = try fba_allocator.alloc(u8, 0xFFFF);
+    const main_memory = try fba_allocator.alloc(u8, 0xFFFF + 1);
     defer fba_allocator.free(main_memory);
     @memset(main_memory, 0);
     _ = try file.readAll(main_memory);
@@ -53,7 +53,9 @@ pub fn main() !void {
 
     const end = 500000;
 
-    try cpu.logState();
+    if (!verbose or cpu.should_print) {
+        try cpu.logState();
+    }
     // cpu.print_flags();
     while (cpu.pc < cpu.memory.len) {
         if (verbose and cpu.counter > end) {
@@ -66,7 +68,7 @@ pub fn main() !void {
         // const p = y >> 1;
         // const q = y & 1;
 
-        if (verbose and cpu.counter == 254074) {
+        if (verbose and cpu.counter == 587415) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
@@ -78,6 +80,14 @@ pub fn main() !void {
         if (!verbose or cpu.should_print) {
             try cpu.logState();
         }
+        // std.debug.print("{b:08} {b:08} {b:08} {b:08}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF02], cpu.memory[0xFFFF], cpu.memory[0xFF0F] });
+        const serial_value = cpu.memory[0xFF01];
+        if (serial_value > 0) {
+            // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
+            std.debug.print("{c}", .{serial_value});
+            cpu.memory[0xFF01] = 0;
+        }
+        // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
         // cpu.print_flags();
         // cpu.print("\n", .{});
     }
@@ -125,15 +135,17 @@ const Cpu = struct {
     }
     fn breakOnAddress(self: *Cpu, address: u16) void {
         // if (self.should_break and address == 0xDF7E) {
-        if (self.should_break and address == 0xDF7C) {
-            @breakpoint();
+        if (self.should_break and address == 0xFF01) {
+            // @breakpoint();
         }
     }
     fn breakOnAddressAndValue(self: *Cpu, address: u16, value: u8) void {
-        if (self.counter > 254000 and self.should_break and address == 0xDF7C and value == 0xFB) {
-            @breakpoint();
-            self.should_print = true;
-        }
+        _ = value;
+        self.breakOnAddress(address);
+        // if (self.counter > 254000 and self.should_break and address == 0xDF7C and value == 0xFB) {
+        //     @breakpoint();
+        //     self.should_print = true;
+        // }
     }
     fn checkCondition(_: *Cpu, index: u8) bool {
         return (index == 0 and flags.z == 0) or (index == 1 and flags.z != 0) or (index == 2 and flags.c == 0) or (index == 3 and flags.c != 0);
