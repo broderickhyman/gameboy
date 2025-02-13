@@ -101,7 +101,7 @@ var af = AfRegisterFull{ .af = 0x01b0 };
 var bc = Register{ .full = 0x0013 };
 var de = Register{ .full = 0x00d8 };
 var hl = Register{ .full = 0x014d };
-var sp: u16 = 0xfffe;
+var sp: u16 = 0xFFFE;
 const a_reg = &af.sp.a;
 const flags = &af.sp.flag.sp;
 
@@ -210,18 +210,20 @@ fn ld_a16_sp(self: *Self, _: u8) void {
 
 fn ldh_c_a(self: *Self, _: u8) void {
     self.print("LD ($FF00+C),A\n", .{});
-    std.debug.panic("Not implemented", .{});
+    const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
+    self.getMemoryPointer(address).* = a_reg.*;
 }
 
 fn ldh_a_c(self: *Self, _: u8) void {
     self.print("LD A,($FF00+C)\n", .{});
-    std.debug.panic("Not implemented", .{});
+    const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
+    a_reg.* = self.readMemory(address);
 }
 
 fn ldh_a8_a(self: *Self, _: u8) void {
     const displacement = self.read();
     self.print("LD ($FF00+${X}),A\n", .{displacement});
-    const address: u16 = @as(u16, 0xff00) + displacement;
+    const address: u16 = @as(u16, 0xFF00) + displacement;
     if (address > 0xFF00 and address < 0xFFFF) {
         self.getMemoryPointer(address).* = a_reg.*;
     }
@@ -230,8 +232,10 @@ fn ldh_a8_a(self: *Self, _: u8) void {
 fn ldh_a_a8(self: *Self, _: u8) void {
     const displacement = self.read();
     self.print("LD A,($FF00+${X})\n", .{displacement});
-    const address: u16 = @as(u16, 0xff00) + displacement;
-    a_reg.* = self.readMemory(address);
+    const address: u16 = @as(u16, 0xFF00) + displacement;
+    if (address > 0xFF00 and address < 0xFFFF) {
+        a_reg.* = self.readMemory(address);
+    }
 }
 
 fn ld_sp_hl(self: *Self, _: u8) void {

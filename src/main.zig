@@ -39,7 +39,7 @@ pub fn main() !void {
         5 => "05-op rp.gb", // Passed
         6 => "06-ld r,r.gb", // Passed
         7 => "07-jr,jp,call,ret,rst.gb", // Passed
-        8 => "08-misc instrs.gb",
+        8 => "08-misc instrs.gb", // Issue with Pop AF
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // DAA
