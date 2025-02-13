@@ -27,9 +27,21 @@ pub fn cycle(self: *Self, verbose: bool) void {
     op_lookup[op_code](self, op_code);
     self.counter += 1;
 }
+pub fn readMemory(self: *Self, address: u16) u8 {
+    // LCD Hardcode
+    if (address == 0xFF44) {
+        return 0x90;
+    }
+    // main_memory[0xFF44] = 0;
+    // main_memory[0xFF40] = 0b10100010;
 
+    return self.memory[address];
+}
+fn getMemoryPointer(self: *Self, address: u16) *u8 {
+    return &self.memory[address];
+}
 fn read(self: *Self) u8 {
-    const memory_value = self.memory[self.pc];
+    const memory_value = self.readMemory(self.pc);
     self.pc += 1;
     return memory_value;
 }
@@ -49,32 +61,15 @@ fn printFlags(self: *Self) void {
     self.print("z: {b}\n", .{flags.z});
 }
 pub fn logState(self: *Self) !void {
-    try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
-    self.print(" - {d}", .{self.counter});
-    // try self.std_out.print(" - {d}", .{self.counter});
-    try self.std_out.print("\n", .{});
+    try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
+    self.print("{d}", .{self.counter});
 }
 fn getRegDataPointer(self: *Self, index: u8) *u8 {
     var data_pointer = reg_8_t[index];
     if (index == 6) {
-        self.breakOnAddress(hl.full);
-        data_pointer = &self.memory[hl.full];
+        data_pointer = self.getMemoryPointer(hl.full);
     }
     return data_pointer;
-}
-fn breakOnAddress(self: *Self, address: u16) void {
-    // if (self.should_break and address == 0xDF7E) {
-    if (self.should_break and address == 0xFF01) {
-        // @breakpoint();
-    }
-}
-fn breakOnAddressAndValue(self: *Self, address: u16, value: u8) void {
-    _ = value;
-    self.breakOnAddress(address);
-    // if (self.counter > 254000 and self.should_break and address == 0xDF7C and value == 0xFB) {
-    //     @breakpoint();
-    //     self.should_print = true;
-    // }
 }
 fn checkCondition(_: *Self, index: u8) bool {
     return (index == 0 and flags.z == 0) or (index == 1 and flags.z != 0) or (index == 2 and flags.c == 0) or (index == 3 and flags.c != 0);
@@ -97,7 +92,7 @@ const a_reg = &af.sp.a;
 const flags = &af.sp.flag.sp;
 
 fn nop(_: *Self, _: u8) void {
-    // std.debug.print("********** NOP ********** ${x:04}\n", .{cpu.index - 1});
+    // std.debug.print("********** NOP ********** ${x:04}\n", .{self.index - 1});
     // std.debug.print("********** NOP **********\n", .{});
     // std.debug.print("{X:02}\n", .{op_code});
     // std.debug.panic("", .{});
@@ -107,263 +102,253 @@ fn nop_vd(_: *Self, _: u8) void {}
 
 // Load
 
-fn ld_rp_n16(cpu: *Self, op_code: u8) void {
+fn ld_rp_n16(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
-    const right = cpu.read();
-    const value: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("LD {s},${x:04}\n", .{ register, value });
+    const right = self.read();
+    const value: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("LD {s},${x:04}\n", .{ register, value });
     reg_p_t[p].* = value;
 }
 
-fn ld_r_n8(cpu: *Self, op_code: u8) void {
+fn ld_r_n8(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    const value = cpu.read();
-    cpu.print("LD {s},${x:04}\n", .{ register, value });
-    cpu.getRegDataPointer(y).* = value;
+    const value = self.read();
+    self.print("LD {s},${x:04}\n", .{ register, value });
+    self.getRegDataPointer(y).* = value;
 }
 
-fn ld_r_r(cpu: *Self, op_code: u8) void {
+fn ld_r_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const z = op_code & 0b111;
     const register1 = reg_8[y];
     const register2 = reg_8[z];
-    cpu.print("LD {s},{s}\n", .{ register1, register2 });
-    cpu.getRegDataPointer(y).* = cpu.getRegDataPointer(z).*;
+    self.print("LD {s},{s}\n", .{ register1, register2 });
+    self.getRegDataPointer(y).* = self.getRegDataPointer(z).*;
 }
 
-fn ld_bc_a(cpu: *Self, _: u8) void {
-    cpu.print("LD (BC),A\n", .{});
-    cpu.breakOnAddress(bc.full);
-    cpu.memory[bc.full] = a_reg.*;
+fn ld_bc_a(self: *Self, _: u8) void {
+    self.print("LD (BC),A\n", .{});
+    self.getMemoryPointer(bc.full).* = a_reg.*;
 }
 
-fn ld_de_a(cpu: *Self, _: u8) void {
-    cpu.print("LD (DE),A\n", .{});
-    cpu.breakOnAddress(de.full);
-    cpu.memory[de.full] = a_reg.*;
+fn ld_de_a(self: *Self, _: u8) void {
+    self.print("LD (DE),A\n", .{});
+    self.getMemoryPointer(de.full).* = a_reg.*;
 }
 
-fn ld_a_bc(cpu: *Self, _: u8) void {
-    cpu.print("LD A,(BC)\n", .{});
-    a_reg.* = cpu.memory[bc.full];
+fn ld_a_bc(self: *Self, _: u8) void {
+    self.print("LD A,(BC)\n", .{});
+    a_reg.* = self.readMemory(bc.full);
 }
 
-fn ld_a_de(cpu: *Self, _: u8) void {
-    cpu.print("LD A,(DE)\n", .{});
-    a_reg.* = cpu.memory[de.full];
+fn ld_a_de(self: *Self, _: u8) void {
+    self.print("LD A,(DE)\n", .{});
+    a_reg.* = self.readMemory(de.full);
 }
 
-fn ld_hli_a(cpu: *Self, _: u8) void {
-    cpu.print("LD (HL+),A\n", .{});
-    cpu.breakOnAddress(hl.full);
-    cpu.memory[hl.full] = a_reg.*;
+fn ld_hli_a(self: *Self, _: u8) void {
+    self.print("LD (HL+),A\n", .{});
+    self.getMemoryPointer(hl.full).* = a_reg.*;
     hl.full += 1;
 }
 
-fn ld_hld_a(cpu: *Self, _: u8) void {
-    cpu.print("LD (HL-),A\n", .{});
-    cpu.breakOnAddress(hl.full);
-    cpu.memory[hl.full] = a_reg.*;
+fn ld_hld_a(self: *Self, _: u8) void {
+    self.print("LD (HL-),A\n", .{});
+    self.getMemoryPointer(hl.full).* = a_reg.*;
     hl.full -= 1;
 }
 
-fn ld_a_hli(cpu: *Self, _: u8) void {
-    cpu.print("LD A,(HL+)\n", .{});
-    a_reg.* = cpu.memory[hl.full];
+fn ld_a_hli(self: *Self, _: u8) void {
+    self.print("LD A,(HL+)\n", .{});
+    a_reg.* = self.readMemory(hl.full);
     hl.full += 1;
 }
 
-fn ld_a_hld(cpu: *Self, _: u8) void {
-    cpu.print("LD A,(HL-)\n", .{});
-    a_reg.* = cpu.memory[hl.full];
+fn ld_a_hld(self: *Self, _: u8) void {
+    self.print("LD A,(HL-)\n", .{});
+    a_reg.* = self.readMemory(hl.full);
     hl.full -= 1;
 }
 
-fn ld_a16_a(cpu: *Self, _: u8) void {
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("LD (${X:04}),A\n", .{address});
-    cpu.breakOnAddressAndValue(address, a_reg.*);
-    cpu.memory[address] = a_reg.*;
+fn ld_a16_a(self: *Self, _: u8) void {
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("LD (${X:04}),A\n", .{address});
+    self.getMemoryPointer(address).* = a_reg.*;
 }
 
-fn ld_a_a16(cpu: *Self, _: u8) void {
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("LD A,(${X:04})\n", .{address});
-    a_reg.* = cpu.memory[address];
+fn ld_a_a16(self: *Self, _: u8) void {
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("LD A,(${X:04})\n", .{address});
+    a_reg.* = self.readMemory(address);
 }
 
-fn ld_a16_sp(cpu: *Self, _: u8) void {
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("LD ${X:04},SP\n", .{address});
-    cpu.breakOnAddress(address);
-    cpu.breakOnAddress(address + 1);
-    cpu.memory[address] = @truncate(sp);
-    cpu.memory[address + 1] = @truncate(sp >> 8);
+fn ld_a16_sp(self: *Self, _: u8) void {
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("LD ${X:04},SP\n", .{address});
+    self.getMemoryPointer(address).* = @truncate(sp);
+    self.getMemoryPointer(address + 1).* = @truncate(sp >> 8);
 }
 
-fn ldh_c_a(cpu: *Self, _: u8) void {
-    cpu.print("LD ($FF00+C),A\n", .{});
+fn ldh_c_a(self: *Self, _: u8) void {
+    self.print("LD ($FF00+C),A\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn ldh_a_c(cpu: *Self, _: u8) void {
-    cpu.print("LD A,($FF00+C)\n", .{});
+fn ldh_a_c(self: *Self, _: u8) void {
+    self.print("LD A,($FF00+C)\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn ldh_a8_a(cpu: *Self, _: u8) void {
-    const displacement = cpu.read();
-    cpu.print("LD ($FF00+${X}),A\n", .{displacement});
+fn ldh_a8_a(self: *Self, _: u8) void {
+    const displacement = self.read();
+    self.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
     if (address > 0xFF00 and address < 0xFFFF) {
-        cpu.breakOnAddress(address);
-        cpu.memory[address] = a_reg.*;
+        self.getMemoryPointer(address).* = a_reg.*;
     }
 }
 
-fn ldh_a_a8(cpu: *Self, _: u8) void {
-    const displacement = cpu.read();
-    cpu.print("LD A,($FF00+${X})\n", .{displacement});
+fn ldh_a_a8(self: *Self, _: u8) void {
+    const displacement = self.read();
+    self.print("LD A,($FF00+${X})\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
-    a_reg.* = cpu.memory[address];
+    a_reg.* = self.readMemory(address);
 }
 
-fn ld_sp_hl(cpu: *Self, _: u8) void {
-    cpu.print("LD SP,HL\n", .{});
+fn ld_sp_hl(self: *Self, _: u8) void {
+    self.print("LD SP,HL\n", .{});
     sp = hl.full;
 }
 
-fn ld_hl_sp_e8(cpu: *Self, _: u8) void {
-    const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
-    cpu.print("LD HL,SP+${X:02}\n", .{address});
+fn ld_hl_sp_e8(self: *Self, _: u8) void {
+    const displacement = self.read();
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
+    self.print("LD HL,SP+${X:02}\n", .{address});
     std.debug.panic("Not implemented", .{});
 }
 
 // Jumps
 
-fn call(cpu: *Self, address: u16) void {
-    push(cpu, cpu.pc);
-    cpu.pc = address;
+fn call(self: *Self, address: u16) void {
+    push(self, self.pc);
+    self.pc = address;
 }
 
-fn call_a16(cpu: *Self, _: u8) void {
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("CALL ${X:04}\n", .{address});
-    call(cpu, address);
+fn call_a16(self: *Self, _: u8) void {
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("CALL ${X:04}\n", .{address});
+    call(self, address);
 }
 
-fn call_cc_a16(cpu: *Self, op_code: u8) void {
+fn call_cc_a16(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const condition = reg_cc[y];
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("CALL {s},${X:04}\n", .{ condition, address });
-    if (cpu.checkCondition(y)) {
-        call(cpu, address);
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("CALL {s},${X:04}\n", .{ condition, address });
+    if (self.checkCondition(y)) {
+        call(self, address);
     }
 }
 
-fn jr_cc_e8(cpu: *Self, op_code: u8) void {
+fn jr_cc_e8(self: *Self, op_code: u8) void {
     const y_offset = op_code >> 3 & 0b111 - 4;
     const condition = reg_cc[y_offset];
-    const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
-    cpu.print("JR {s},Addr_{x:04}\n", .{ condition, address });
-    if (cpu.checkCondition(y_offset)) {
-        cpu.pc = address;
+    const displacement = self.read();
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
+    self.print("JR {s},Addr_{x:04}\n", .{ condition, address });
+    if (self.checkCondition(y_offset)) {
+        self.pc = address;
     }
 }
 
-fn jr_e8(cpu: *Self, _: u8) void {
-    const displacement = cpu.read();
+fn jr_e8(self: *Self, _: u8) void {
+    const displacement = self.read();
     const jump = @as(i8, @bitCast(displacement));
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + jump));
-    cpu.print("JR Addr_{x:04} {x:02}\n", .{ address, jump });
-    cpu.pc = address;
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + jump));
+    self.print("JR Addr_{x:04} {x:02}\n", .{ address, jump });
+    self.pc = address;
 }
 
-fn ret(cpu: *Self, _: u8) void {
-    cpu.print("RET\n", .{});
-    cpu.pc = pop(cpu);
+fn ret(self: *Self, _: u8) void {
+    self.print("RET\n", .{});
+    self.pc = pop(self);
 }
 
-fn reti(cpu: *Self, op_code: u8) void {
-    cpu.print("RETI\n", .{});
-    ei(cpu, op_code);
-    ret(cpu, op_code);
+fn reti(self: *Self, op_code: u8) void {
+    self.print("RETI\n", .{});
+    ei(self, op_code);
+    ret(self, op_code);
 }
 
-fn ret_cc(cpu: *Self, op_code: u8) void {
+fn ret_cc(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const condition = reg_cc[y];
-    cpu.print("RET {s}\n", .{condition});
-    if (cpu.checkCondition(y)) {
-        ret(cpu, 0);
+    self.print("RET {s}\n", .{condition});
+    if (self.checkCondition(y)) {
+        ret(self, 0);
     }
 }
 
-fn jp_a16(cpu: *Self, _: u8) void {
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("JP Addr_{x:04}\n", .{address});
-    cpu.pc = address;
+fn jp_a16(self: *Self, _: u8) void {
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("JP Addr_{x:04}\n", .{address});
+    self.pc = address;
 }
 
-fn jp_cc_a16(cpu: *Self, op_code: u8) void {
+fn jp_cc_a16(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const condition = reg_cc[y];
 
-    const right = cpu.read();
-    const address: u16 = (@as(u16, cpu.read()) << 8) | right;
-    cpu.print("JP {s},Addr_{x:04}\n", .{ condition, address });
-    if (cpu.checkCondition(y)) {
-        cpu.pc = address;
+    const right = self.read();
+    const address: u16 = (@as(u16, self.read()) << 8) | right;
+    self.print("JP {s},Addr_{x:04}\n", .{ condition, address });
+    if (self.checkCondition(y)) {
+        self.pc = address;
     }
 }
 
-fn jp_hl(cpu: *Self, _: u8) void {
-    cpu.print("JP HL\n", .{});
-    cpu.pc = hl.full;
+fn jp_hl(self: *Self, _: u8) void {
+    self.print("JP HL\n", .{});
+    self.pc = hl.full;
 }
 
-fn rst(cpu: *Self, op_code: u8) void {
+fn rst(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const vec = y * 8;
-    cpu.print("RST Addr_{x:04}\n", .{vec});
-    call(cpu, vec);
+    self.print("RST Addr_{x:04}\n", .{vec});
+    call(self, vec);
 }
 
-fn push(cpu: *Self, value: u16) void {
+fn push(self: *Self, value: u16) void {
     sp -= 1;
-    cpu.breakOnAddressAndValue(sp, @truncate(value >> 8));
-    cpu.memory[sp] = @truncate(value >> 8);
+    self.getMemoryPointer(sp).* = @truncate(value >> 8);
     sp -= 1;
-    cpu.breakOnAddressAndValue(sp, @truncate(value));
-    cpu.memory[sp] = @truncate(value);
+    self.getMemoryPointer(sp).* = @truncate(value);
 }
 
-fn pop(cpu: *Self) u16 {
-    var new_value: u16 = @as(u16, cpu.memory[sp]);
+fn pop(self: *Self) u16 {
+    var new_value: u16 = @as(u16, self.readMemory(sp));
     sp += 1;
-    new_value = new_value | (@as(u16, cpu.memory[sp]) << 8);
+    new_value = new_value | (@as(u16, self.readMemory(sp)) << 8);
     sp += 1;
     return new_value;
 }
 
 // Arithmetic
 
-fn inc_r(cpu: *Self, op_code: u8) void {
+fn inc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("INC {s}\n", .{register});
-    const data_pointer = cpu.getRegDataPointer(y);
+    self.print("INC {s}\n", .{register});
+    const data_pointer = self.getRegDataPointer(y);
     var value: u8 = data_pointer.*;
     const overflow = value >> 4 & 1;
     if (value == 0xFF) {
@@ -386,20 +371,20 @@ fn inc_r(cpu: *Self, op_code: u8) void {
     }
 }
 
-fn inc_rp(cpu: *Self, op_code: u8) void {
+fn inc_rp(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
-    cpu.print("INC {s}\n", .{register});
+    self.print("INC {s}\n", .{register});
     const data_pointer = reg_p_t[p];
     const result = @addWithOverflow(data_pointer.*, 1);
     data_pointer.* = result[0];
 }
 
-fn dec_r(cpu: *Self, op_code: u8) void {
+fn dec_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("DEC {s}\n", .{register});
-    const data_pointer = cpu.getRegDataPointer(y);
+    self.print("DEC {s}\n", .{register});
+    const data_pointer = self.getRegDataPointer(y);
     const current_value = data_pointer.*;
     const result = @subWithOverflow(current_value, 1);
     data_pointer.* = result[0];
@@ -413,24 +398,24 @@ fn dec_r(cpu: *Self, op_code: u8) void {
     }
 }
 
-fn dec_rp(cpu: *Self, op_code: u8) void {
+fn dec_rp(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
-    cpu.print("DEC {s}\n", .{register});
+    self.print("DEC {s}\n", .{register});
     reg_p_t[p].* -= 1;
 }
 
-fn add_r(cpu: *Self, op_code: u8) void {
+fn add_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("ADD {s}\n", .{register});
+    self.print("ADD {s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn add_hl_rp(cpu: *Self, op_code: u8) void {
+fn add_hl_rp(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
-    cpu.print("ADD HL,{s}\n", .{register});
+    self.print("ADD HL,{s}\n", .{register});
     const current_value = reg_p_t[p].*;
     const result = @addWithOverflow(hl.full, current_value);
     const half_result = @addWithOverflow(@as(u12, @truncate(hl.full)), @as(u12, @truncate(current_value)));
@@ -440,47 +425,47 @@ fn add_hl_rp(cpu: *Self, op_code: u8) void {
     flags.c = result[1];
 }
 
-fn add_sp_e8(cpu: *Self, _: u8) void {
-    const displacement = cpu.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(cpu.pc)) + @as(i8, @bitCast(displacement))));
-    cpu.print("ADD SP,ADDR_${X:02}\n", .{address});
+fn add_sp_e8(self: *Self, _: u8) void {
+    const displacement = self.read();
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
+    self.print("ADD SP,ADDR_${X:02}\n", .{address});
     std.debug.panic("Not implemented", .{});
 }
 
-fn sub_r(cpu: *Self, op_code: u8) void {
+fn sub_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("SUB {s}\n", .{register});
+    self.print("SUB {s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn adc_r(cpu: *Self, op_code: u8) void {
+fn adc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("ADC {s}\n", .{register});
+    self.print("ADC {s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn sbc_r(cpu: *Self, op_code: u8) void {
+fn sbc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("SBC {s}\n", .{register});
+    self.print("SBC {s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn cp_r(cpu: *Self, op_code: u8) void {
+fn cp_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("CP {s}\n", .{register});
+    self.print("CP {s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn alu_n8(cpu: *Self, op_code: u8) void {
+fn alu_n8(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    var change = cpu.read();
+    var change = self.read();
     const current_value = a_reg.*;
-    cpu.print("{s} A,${X:02}\n", .{ register, change });
+    self.print("{s} A,${X:02}\n", .{ register, change });
     var new_value = current_value;
     if (y == 0) {
         // ADD
@@ -544,18 +529,18 @@ fn alu_n8(cpu: *Self, op_code: u8) void {
 
 // Bitwise logic
 
-fn and_r(cpu: *Self, op_code: u8) void {
+fn and_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
-    cpu.print("AND A,{s}\n", .{register});
+    self.print("AND A,{s}\n", .{register});
     std.debug.panic("Not implemented", .{});
 }
 
-fn or_r(cpu: *Self, op_code: u8) void {
+fn or_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
-    cpu.print("OR A,{s}\n", .{register});
-    a_reg.* = a_reg.* | cpu.getRegDataPointer(z).*;
+    self.print("OR A,{s}\n", .{register});
+    a_reg.* = a_reg.* | self.getRegDataPointer(z).*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -566,11 +551,11 @@ fn or_r(cpu: *Self, op_code: u8) void {
     flags.c = 0;
 }
 
-fn xor_r(cpu: *Self, op_code: u8) void {
+fn xor_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
-    cpu.print("XOR A,{s}\n", .{register});
-    a_reg.* = cpu.getRegDataPointer(z).* ^ a_reg.*;
+    self.print("XOR A,{s}\n", .{register});
+    a_reg.* = self.getRegDataPointer(z).* ^ a_reg.*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -583,39 +568,39 @@ fn xor_r(cpu: *Self, op_code: u8) void {
 
 // Stack
 
-fn push_rp2(cpu: *Self, op_code: u8) void {
+fn push_rp2(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p2[p];
-    cpu.print("PUSH {s}\n", .{register});
-    push(cpu, reg_p2_t[p].*);
+    self.print("PUSH {s}\n", .{register});
+    push(self, reg_p2_t[p].*);
 }
 
-fn pop_rp2(cpu: *Self, op_code: u8) void {
+fn pop_rp2(self: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p2[p];
-    cpu.print("POP {s}\n", .{register});
-    reg_p2_t[p].* = pop(cpu);
+    self.print("POP {s}\n", .{register});
+    reg_p2_t[p].* = pop(self);
 }
 
 // Bit shift
 
-fn rlca(cpu: *Self, _: u8) void {
-    cpu.print("RLCA\n", .{});
+fn rlca(self: *Self, _: u8) void {
+    self.print("RLCA\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn rrca(cpu: *Self, _: u8) void {
-    cpu.print("RRCA\n", .{});
+fn rrca(self: *Self, _: u8) void {
+    self.print("RRCA\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn rla(cpu: *Self, _: u8) void {
-    cpu.print("RLA\n", .{});
+fn rla(self: *Self, _: u8) void {
+    self.print("RLA\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn rra(cpu: *Self, _: u8) void {
-    cpu.print("RRA\n", .{});
+fn rra(self: *Self, _: u8) void {
+    self.print("RRA\n", .{});
     const old_c: u8 = flags.c;
     flags.c = @truncate(a_reg.* & 0x1);
     a_reg.* = (a_reg.* >> 1) | (old_c << 7);
@@ -624,55 +609,55 @@ fn rra(cpu: *Self, _: u8) void {
     flags.z = 0;
 }
 
-fn daa(cpu: *Self, _: u8) void {
+fn daa(self: *Self, _: u8) void {
     // Complicated
     // Uses N and H flags
-    cpu.print("DAA\n", .{});
+    self.print("DAA\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn cpl(cpu: *Self, _: u8) void {
-    cpu.print("CPL\n", .{});
+fn cpl(self: *Self, _: u8) void {
+    self.print("CPL\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn scf(cpu: *Self, _: u8) void {
-    cpu.print("SCF\n", .{});
+fn scf(self: *Self, _: u8) void {
+    self.print("SCF\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn ccf(cpu: *Self, _: u8) void {
-    cpu.print("CCF\n", .{});
+fn ccf(self: *Self, _: u8) void {
+    self.print("CCF\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
 // Interrupt
 
-fn halt(cpu: *Self, _: u8) void {
-    cpu.print("HALT\n", .{});
+fn halt(self: *Self, _: u8) void {
+    self.print("HALT\n", .{});
     std.debug.panic("Not implemented", .{});
 }
 
-fn di(cpu: *Self, _: u8) void {
-    cpu.print("DI\n", .{});
+fn di(self: *Self, _: u8) void {
+    self.print("DI\n", .{});
 }
 
-fn ei(cpu: *Self, _: u8) void {
-    cpu.print("EI\n", .{});
+fn ei(self: *Self, _: u8) void {
+    self.print("EI\n", .{});
 }
 
 // CB
 
-fn cb_prefix(cpu: *Self, _: u8) void {
-    const op_code = cpu.read();
+fn cb_prefix(self: *Self, _: u8) void {
+    const op_code = self.read();
     const x = op_code >> 6 & 0b11;
     const y = op_code >> 3 & 0b111;
     const z = op_code & 0b111;
     if (x == 0) {
         const operation = reg_rot[y];
         const register = reg_8[z];
-        cpu.print("{s} {s}\n", .{ operation, register });
-        const data_pointer = cpu.getRegDataPointer(z);
+        self.print("{s} {s}\n", .{ operation, register });
+        const data_pointer = self.getRegDataPointer(z);
         if (y == 3) {
             // RR
             const old_c: u8 = flags.c;
@@ -713,17 +698,17 @@ fn cb_prefix(cpu: *Self, _: u8) void {
         }
     } else if (x == 1) {
         const register = reg_8[z];
-        cpu.print("BIT {d},{s}\n", .{ y, register });
+        self.print("BIT {d},{s}\n", .{ y, register });
         std.debug.panic("BIT Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
     } else {
-        cpu.print("NOP CB\n", .{});
+        self.print("NOP CB\n", .{});
         std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
     }
 }
 
-fn stop(cpu: *Self, _: u8) void {
-    _ = cpu.read();
-    cpu.print("STOP\n", .{});
+fn stop(self: *Self, _: u8) void {
+    _ = self.read();
+    self.print("STOP\n", .{});
 }
 
 const reg_8: [8][]const u8 = .{ "B", "C", "D", "E", "H", "L", "(HL)", "A" };

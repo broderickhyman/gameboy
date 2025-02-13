@@ -51,11 +51,6 @@ pub fn main() !void {
     @memset(main_memory, 0);
     _ = try file.readAll(main_memory);
 
-    // LCD Hardcode
-    main_memory[0xFF44] = 0x90;
-    // main_memory[0xFF44] = 0;
-    // main_memory[0xFF40] = 0b10100010;
-
     // zig fmt: off
     var cpu = Cpu{
         .memory = main_memory,
