@@ -785,10 +785,17 @@ fn cb_prefix(self: *Self, _: u8) void {
         }
     } else if (x == 1) {
         self.print("BIT {d},{s}\n", .{ y, register });
-        // self.getRegDataValue(y)
-        flags.z = ~@as(u1, @truncate(value >> (y - 1)));
+        flags.z = ~@as(u1, @truncate(value >> y));
         flags.n = 0;
         flags.h = 1;
+    } else if (x == 2) {
+        self.print("RES {d},{s}\n", .{ y, register });
+        const mask = ~(@as(u8, 1) << y);
+        self.getRegDataPointer(z).* = value & mask;
+    } else if (x == 3) {
+        self.print("SET {d},{s}\n", .{ y, register });
+        const mask = @as(u8, 1) << y;
+        self.getRegDataPointer(z).* = value | mask;
     } else {
         self.print("NOP CB\n", .{});
         std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
