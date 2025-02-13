@@ -66,6 +66,7 @@ pub fn main() !void {
         .should_print = verbose or !debug,
         .should_break = debug,
         .debug = debug,
+        .verbose = verbose,
         .std_out = std_out
         };
     // zig fmt: on

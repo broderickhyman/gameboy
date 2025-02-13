@@ -11,6 +11,7 @@ memory: []u8,
 pc: u16,
 counter: u32,
 debug: bool,
+verbose: bool,
 should_print: bool,
 should_break: bool,
 std_out: std.fs.File.Writer,
@@ -33,12 +34,23 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     if (address == 0xFF44) {
         return 0x90;
     }
+    // if (address == 0xFF42) {
+    //     return 0;
+    // }
     // main_memory[0xFF44] = 0;
     // main_memory[0xFF40] = 0b10100010;
 
     return self.memory[address];
 }
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
+    if (self.debug) {
+        if (address == 0xFF44) {
+            @breakpoint();
+        }
+        if (address == 0xFF42) {
+            @breakpoint();
+        }
+    }
     return &self.memory[address];
 }
 fn read(self: *Self) u8 {
@@ -50,7 +62,7 @@ fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.debug) {
+    if (self.verbose) {
         std.debug.print(fmt, args);
     }
 }
@@ -65,14 +77,21 @@ pub fn logState(self: *Self) !void {
     if (!self.should_print) {
         return;
     }
-    try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
+    try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.readMemory(self.pc), self.readMemory(self.pc + 1), self.readMemory(self.pc + 2), self.readMemory(self.pc + 3) });
 }
 fn getRegDataPointer(self: *Self, index: u8) *u8 {
-    var data_pointer = reg_8_t[index];
     if (index == 6) {
-        data_pointer = self.getMemoryPointer(hl.full);
+        return self.getMemoryPointer(hl.full);
+    } else {
+        return reg_8_t[index];
     }
-    return data_pointer;
+}
+fn getRegDataValue(self: *Self, index: u8) u8 {
+    if (index == 6) {
+        return self.readMemory(hl.full);
+    } else {
+        return reg_8_t[index].*;
+    }
 }
 fn checkCondition(_: *Self, index: u8) bool {
     return (index == 0 and flags.z == 0) or (index == 1 and flags.z != 0) or (index == 2 and flags.c == 0) or (index == 3 and flags.c != 0);
@@ -128,7 +147,7 @@ fn ld_r_r(self: *Self, op_code: u8) void {
     const register1 = reg_8[y];
     const register2 = reg_8[z];
     self.print("LD {s},{s}\n", .{ register1, register2 });
-    self.getRegDataPointer(y).* = self.getRegDataPointer(z).*;
+    self.getRegDataPointer(y).* = self.getRegDataValue(z);
 }
 
 fn ld_bc_a(self: *Self, _: u8) void {
@@ -351,15 +370,14 @@ fn inc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("INC {s}\n", .{register});
-    const data_pointer = self.getRegDataPointer(y);
-    var value: u8 = data_pointer.*;
+    var value: u8 = self.getRegDataValue(y);
     const overflow = value >> 4 & 1;
     if (value == 0xFF) {
         value = 0;
     } else {
         value += 1;
     }
-    data_pointer.* = value;
+    self.getRegDataPointer(y).* = value;
     if (value == 0) {
         flags.z = 1;
     } else {
@@ -387,14 +405,13 @@ fn dec_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("DEC {s}\n", .{register});
-    const data_pointer = self.getRegDataPointer(y);
-    const current_value = data_pointer.*;
+    const current_value = self.getRegDataValue(y);
     const result = @subWithOverflow(current_value, 1);
-    data_pointer.* = result[0];
+    self.getRegDataPointer(y).* = result[0];
     flags.n = 1;
     const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(1)));
     flags.h = half_result[1];
-    if (data_pointer.* == 0) {
+    if (result[0] == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
@@ -543,7 +560,7 @@ fn or_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
     self.print("OR A,{s}\n", .{register});
-    a_reg.* = a_reg.* | self.getRegDataPointer(z).*;
+    a_reg.* = a_reg.* | self.getRegDataValue(z);
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -558,7 +575,7 @@ fn xor_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
     self.print("XOR A,{s}\n", .{register});
-    a_reg.* = self.getRegDataPointer(z).* ^ a_reg.*;
+    a_reg.* = self.getRegDataValue(z) ^ a_reg.*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -660,38 +677,38 @@ fn cb_prefix(self: *Self, _: u8) void {
         const operation = reg_rot[y];
         const register = reg_8[z];
         self.print("{s} {s}\n", .{ operation, register });
-        const data_pointer = self.getRegDataPointer(z);
+        const value = self.getRegDataValue(z);
         if (y == 3) {
             // RR
             const old_c: u8 = flags.c;
-            flags.c = @truncate(data_pointer.* & 0x1);
-            data_pointer.* = (data_pointer.* >> 1) | (old_c << 7);
+            flags.c = @truncate(value & 0x1);
+            self.getRegDataPointer(z).* = (value >> 1) | (old_c << 7);
             flags.n = 0;
             flags.h = 0;
-            if (data_pointer.* == 0) {
+            if (self.getRegDataValue(z) == 0) {
                 flags.z = 1;
             } else {
                 flags.z = 0;
             }
         } else if (y == 4) {
             // SLA
-            const result = @shlWithOverflow(data_pointer.*, 0x1);
+            const result = @shlWithOverflow(value, 0x1);
             flags.c = result[1];
-            data_pointer.* = result[0];
+            self.getRegDataPointer(z).* = result[0];
             flags.n = 0;
             flags.h = 0;
-            if (data_pointer.* == 0) {
+            if (result[0] == 0) {
                 flags.z = 1;
             } else {
                 flags.z = 0;
             }
         } else if (y == 7) {
             // SRL
-            flags.c = @truncate(data_pointer.* & 0x1);
-            data_pointer.* = data_pointer.* >> 1;
+            flags.c = @truncate(value & 0x1);
+            self.getRegDataPointer(z).* = value >> 1;
             flags.n = 0;
             flags.h = 0;
-            if (data_pointer.* == 0) {
+            if (self.getRegDataValue(z) == 0) {
                 flags.z = 1;
             } else {
                 flags.z = 0;
