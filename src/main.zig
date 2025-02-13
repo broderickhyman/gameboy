@@ -36,7 +36,7 @@ pub fn main() !void {
         2 => "02-interrupts.gb",
         3 => "03-op sp,hl.gb", // Passed
         4 => "04-op r,imm.gb", // Passed
-        5 => "05-op rp.gb",
+        5 => "05-op rp.gb", // Passed
         6 => "06-ld r,r.gb", // Passed
         7 => "07-jr,jp,call,ret,rst.gb", // Passed
         8 => "08-misc instrs.gb",
