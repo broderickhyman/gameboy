@@ -76,12 +76,22 @@ pub fn main() !void {
         };
     // zig fmt: on
 
-    const end: u32 = 1000000;
+    const end: u32 = 1600000;
 
     try cpu.logState();
     while (cpu.pc < cpu.memory.len) {
         if (cpu.should_break and cpu.counter > end) {
             break;
+        }
+        if (cpu.should_break and cpu.counter >= 1413059) {
+            // if (verbose and cpu.pc == 0xdefb) {
+            // if (verbose and sp == 0xdf7e) {
+            cpu.should_print = true;
+            cpu.printFlags();
+            @breakpoint();
+        }
+        if (cpu.counter % 100000 == 0) {
+            std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
         cpu.cycle();
         try cpu.logState();

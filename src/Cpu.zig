@@ -18,14 +18,6 @@ std_out: std.fs.File.Writer,
 
 pub fn cycle(self: *Self) void {
     const op_code = self.read();
-
-    if (self.should_break and self.counter == 500000) {
-        // if (verbose and self.pc == 0xdefb) {
-        // if (verbose and sp == 0xdf7e) {
-        self.should_print = true;
-        @breakpoint();
-    }
-
     op_lookup[op_code](self, op_code);
     self.counter += 1;
 }
@@ -62,11 +54,11 @@ fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.verbose) {
+    if (self.debug and self.should_print) {
         std.debug.print(fmt, args);
     }
 }
-fn printFlags(self: *Self) void {
+pub fn printFlags(self: *Self) void {
     self.print("{b}\n", .{af.sp.flag.full});
     self.print("c: {b}\n", .{flags.c});
     self.print("h: {b}\n", .{flags.h});
@@ -366,6 +358,114 @@ fn pop(self: *Self) u16 {
 
 // Arithmetic
 
+fn adc_r(self: *Self, op_code: u8) void {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    self.print("ADC {s}\n", .{register});
+    adc_int(self.getRegDataValue(z));
+}
+
+fn adc_int(change: u8) void {
+    const change_result = @addWithOverflow(change, flags.c);
+    const result = @addWithOverflow(a_reg.*, change_result[0]);
+    const change_half_result = @addWithOverflow(@as(u4, @truncate(change)), flags.c);
+    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), change_half_result[0]);
+    flags.c = result[1] | change_result[1];
+    flags.h = half_result[1] | change_half_result[1];
+    a_reg.* = result[0];
+    flags.n = 0;
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn add_r(self: *Self, op_code: u8) void {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    self.print("ADD {s}\n", .{register});
+    add_int(self.getRegDataValue(z));
+}
+
+fn add_sp_e8(self: *Self, _: u8) void {
+    const displacement = self.read();
+    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
+    self.print("ADD SP,ADDR_${X:02}\n", .{address});
+    std.debug.panic("Not implemented", .{});
+}
+
+fn add_hl_rp(self: *Self, op_code: u8) void {
+    const p = op_code >> 4 & 0b11;
+    const register = reg_p[p];
+    self.print("ADD HL,{s}\n", .{register});
+    const current_value = reg_p_t[p].*;
+    const result = @addWithOverflow(hl.full, current_value);
+    const half_result = @addWithOverflow(@as(u12, @truncate(hl.full)), @as(u12, @truncate(current_value)));
+    hl.full = result[0];
+    flags.n = 0;
+    flags.h = half_result[1];
+    flags.c = result[1];
+}
+
+fn add_int(change: u8) void {
+    const result = @addWithOverflow(a_reg.*, change);
+    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change)));
+    a_reg.* = result[0];
+    flags.c = result[1];
+    flags.n = 0;
+    flags.h = half_result[1];
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn cp_r(self: *Self, op_code: u8) void {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    self.print("CP {s}\n", .{register});
+    cp_int(self.getRegDataValue(z));
+}
+
+fn cp_int(value: u8) void {
+    const result = @subWithOverflow(a_reg.*, value);
+    flags.c = result[1];
+    flags.n = 1;
+    const half_result = @subWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(value)));
+    flags.h = half_result[1];
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn dec_r(self: *Self, op_code: u8) void {
+    const y = op_code >> 3 & 0b111;
+    const register = reg_8[y];
+    self.print("DEC {s}\n", .{register});
+    const current_value = self.getRegDataValue(y);
+    const result = @subWithOverflow(current_value, 1);
+    self.getRegDataPointer(y).* = result[0];
+    flags.n = 1;
+    const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), 1);
+    flags.h = half_result[1];
+    if (result[0] == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn dec_rp(self: *Self, op_code: u8) void {
+    const p = op_code >> 4 & 0b11;
+    const register = reg_p[p];
+    self.print("DEC {s}\n", .{register});
+    reg_p_t[p].* -= 1;
+}
+
 fn inc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
@@ -401,135 +501,57 @@ fn inc_rp(self: *Self, op_code: u8) void {
     data_pointer.* = result[0];
 }
 
-fn dec_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
-    self.print("DEC {s}\n", .{register});
-    const current_value = self.getRegDataValue(y);
-    const result = @subWithOverflow(current_value, 1);
-    self.getRegDataPointer(y).* = result[0];
+fn sbc_r(self: *Self, op_code: u8) void {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    self.print("SBC {s}\n", .{register});
+    sbc_int(self.getRegDataValue(z));
+}
+
+fn sbc_int(change: u8) void {
+    const result = @subWithOverflow(a_reg.*, change);
+    const change_result = @subWithOverflow(result[0], flags.c);
+
+    const half_result = @subWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change)));
+    const change_half_result = @subWithOverflow(@as(u4, @truncate(half_result[0])), flags.c);
+
+    flags.c = result[1] | change_result[1];
+    flags.h = half_result[1] | change_half_result[1];
+    a_reg.* = change_result[0];
     flags.n = 1;
-    const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(1)));
-    flags.h = half_result[1];
-    if (result[0] == 0) {
+    if (change_result[0] & 0xFF == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
     }
-}
-
-fn dec_rp(self: *Self, op_code: u8) void {
-    const p = op_code >> 4 & 0b11;
-    const register = reg_p[p];
-    self.print("DEC {s}\n", .{register});
-    reg_p_t[p].* -= 1;
-}
-
-fn add_r(self: *Self, op_code: u8) void {
-    const z = op_code & 0b111;
-    const register = reg_8[z];
-    self.print("ADD {s}\n", .{register});
-    add_int(self.getRegDataValue(z));
-}
-
-fn add_hl_rp(self: *Self, op_code: u8) void {
-    const p = op_code >> 4 & 0b11;
-    const register = reg_p[p];
-    self.print("ADD HL,{s}\n", .{register});
-    const current_value = reg_p_t[p].*;
-    const result = @addWithOverflow(hl.full, current_value);
-    const half_result = @addWithOverflow(@as(u12, @truncate(hl.full)), @as(u12, @truncate(current_value)));
-    hl.full = result[0];
-    flags.n = 0;
-    flags.h = half_result[1];
-    flags.c = result[1];
-}
-
-fn add_sp_e8(self: *Self, _: u8) void {
-    const displacement = self.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
-    self.print("ADD SP,ADDR_${X:02}\n", .{address});
-    std.debug.panic("Not implemented", .{});
 }
 
 fn sub_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
+    const z = op_code & 0b111;
+    const register = reg_8[z];
     self.print("SUB {s}\n", .{register});
-    // const current_value = self.getRegDataValue(y);
-    std.debug.panic("Not implemented", .{});
+    sub_int(self.getRegDataValue(z));
 }
 
-fn adc_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
-    self.print("ADC {s}\n", .{register});
-    adc_int(self.getRegDataValue(y));
-}
-
-fn sbc_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
-    self.print("SBC {s}\n", .{register});
-    // const current_value = self.getRegDataValue(y);
-    std.debug.panic("Not implemented", .{});
-}
-
-fn add_int(change: u8) void {
-    const result = @addWithOverflow(a_reg.*, change);
-    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change)));
-    a_reg.* = result[0];
-    flags.c = result[1];
-    flags.n = 0;
-    flags.h = half_result[1];
-    if (result[0] & 0xFF == 0) {
-        flags.z = 1;
-    } else {
-        flags.z = 0;
-    }
-}
-
-fn adc_int(change: u8) void {
-    const result = @addWithOverflow(a_reg.*, change + flags.c);
-    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change + flags.c)));
-    flags.c = result[1];
-    a_reg.* = result[0];
-    flags.n = 0;
-    flags.h = half_result[1];
-    if (result[0] & 0xFF == 0) {
-        flags.z = 1;
-    } else {
-        flags.z = 0;
-    }
-}
-
-fn cp_int(value: u8) void {
+fn sub_int(value: u8) void {
     const result = @subWithOverflow(a_reg.*, value);
     flags.c = result[1];
     flags.n = 1;
     const half_result = @subWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(value)));
     flags.h = half_result[1];
+    a_reg.* = result[0];
     if (result[0] & 0xFF == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
     }
-}
-
-fn cp_r(self: *Self, op_code: u8) void {
-    const z = op_code & 0b111;
-    const register = reg_8[z];
-    self.print("CP {s}\n", .{register});
-    cp_int(self.getRegDataValue(z));
 }
 
 fn alu_n8(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
     const change = self.read();
-    const current_value = a_reg.*;
     self.print("{s} A,${X:02}\n", .{ register, change });
-    var new_value = current_value;
     if (y == 0) {
         // ADD
         add_int(change);
@@ -540,56 +562,62 @@ fn alu_n8(self: *Self, op_code: u8) void {
         return;
     } else if (y == 2) {
         // SUB
-        const result = @subWithOverflow(current_value, change);
-        flags.c = result[1];
-        new_value = result[0];
-        a_reg.* = new_value;
-        flags.n = 1;
-        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
-        flags.h = half_result[1];
+        sub_int(change);
+        return;
+    } else if (y == 3) {
+        // SBC
+        sbc_int(change);
+        return;
     } else if (y == 4) {
         // AND
-        new_value = current_value & change;
-        a_reg.* = new_value;
-        flags.n = 0;
-        flags.h = 1;
-        flags.c = 0;
+        and_int(change);
+        return;
     } else if (y == 5) {
         // XOR
-        new_value = current_value ^ change;
-        a_reg.* = new_value;
-        flags.n = 0;
-        flags.h = 0;
-        flags.c = 0;
+        xor_int(change);
+        return;
+    } else if (y == 6) {
+        // OR
+        or_int(change);
+        return;
     } else if (y == 7) {
         // CP
         cp_int(change);
         return;
-    } else {
-        std.debug.panic("Not implemented: {s}", .{register});
     }
-    if (new_value & 0xFF == 0) {
+    std.debug.panic("Unknown: {s}", .{register});
+}
+
+// Bitwise logic
+
+fn and_r(self: *Self, op_code: u8) void {
+    const z = op_code & 0b111;
+    const register = reg_8[z];
+    self.print("AND A,{s}\n", .{register});
+    and_int(self.getRegDataValue(z));
+}
+
+fn and_int(change: u8) void {
+    a_reg.* = a_reg.* & change;
+    flags.n = 0;
+    flags.h = 1;
+    flags.c = 0;
+    if (a_reg.* & 0xFF == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
     }
 }
 
-// Bitwise logic
-
-fn and_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
-    self.print("AND A,{s}\n", .{register});
-    // self.getRegDataValue(y)
-    std.debug.panic("Not implemented", .{});
-}
-
 fn or_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
     self.print("OR A,{s}\n", .{register});
-    a_reg.* = a_reg.* | self.getRegDataValue(z);
+    or_int(self.getRegDataValue(z));
+}
+
+fn or_int(change: u8) void {
+    a_reg.* = a_reg.* | change;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
@@ -604,7 +632,11 @@ fn xor_r(self: *Self, op_code: u8) void {
     const z = op_code & 0b111;
     const register = reg_8[z];
     self.print("XOR A,{s}\n", .{register});
-    a_reg.* = self.getRegDataValue(z) ^ a_reg.*;
+    xor_int(self.getRegDataValue(z));
+}
+
+fn xor_int(change: u8) void {
+    a_reg.* = change ^ a_reg.*;
     if (a_reg.* == 0) {
         flags.z = 1;
     } else {
