@@ -699,13 +699,13 @@ fn ei(self: *Self, _: u8) void {
 fn cb_prefix(self: *Self, _: u8) void {
     const op_code = self.read();
     const x = op_code >> 6 & 0b11;
-    const y = op_code >> 3 & 0b111;
+    const y: u3 = @truncate(op_code >> 3 & 0b111);
     const z = op_code & 0b111;
+    const register = reg_8[z];
+    const value = self.getRegDataValue(z);
     if (x == 0) {
         const operation = reg_rot[y];
-        const register = reg_8[z];
         self.print("{s} {s}\n", .{ operation, register });
-        const value = self.getRegDataValue(z);
         if (y == 3) {
             // RR
             const old_c: u8 = flags.c;
@@ -745,10 +745,11 @@ fn cb_prefix(self: *Self, _: u8) void {
             std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
         }
     } else if (x == 1) {
-        const register = reg_8[z];
         self.print("BIT {d},{s}\n", .{ y, register });
         // self.getRegDataValue(y)
-        std.debug.panic("BIT Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
+        flags.z = ~@as(u1, @truncate(value >> (y - 1)));
+        flags.n = 0;
+        flags.h = 1;
     } else {
         self.print("NOP CB\n", .{});
         std.debug.panic("Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });

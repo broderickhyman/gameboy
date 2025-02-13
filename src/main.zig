@@ -30,9 +30,8 @@ pub fn main() !void {
             file_num = try std.fmt.parseInt(u4, args[1], 10);
         }
     }
-
-    // const file = try std.fs.cwd().openFile("roms/dmg_boot.bin", .{});
     const file_name: []const u8 = switch (file_num) {
+        0 => "dmg_boot.bin",
         1 => "01-special.gb",
         2 => "02-interrupts.gb",
         3 => "03-op sp,hl.gb",
@@ -47,7 +46,13 @@ pub fn main() !void {
         else => "",
     };
     var paths: [2][]const u8 = undefined;
-    paths[0] = "../gb-test-roms/cpu_instrs/individual/";
+    var start_pc: u16 = 0x0100;
+    if (file_num == 0) {
+        paths[0] = "roms/";
+        start_pc = 0;
+    } else {
+        paths[0] = "../gb-test-roms/cpu_instrs/individual/";
+    }
     paths[1] = file_name;
     const path = try std.fs.path.join(gpa_allocator, &paths);
     const file = try std.fs.cwd().openFile(path, .{});
@@ -61,7 +66,7 @@ pub fn main() !void {
     // zig fmt: off
     var cpu = Cpu{
         .memory = main_memory,
-        .pc = 0x0100,
+        .pc = start_pc,
         .counter = 1,
         .should_print = verbose or !debug,
         .should_break = debug,
