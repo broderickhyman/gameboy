@@ -464,8 +464,7 @@ fn adc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("ADC {s}\n", .{register});
-    // const current_value = self.getRegDataValue(y);
-    std.debug.panic("Not implemented", .{});
+    adc_int(self.getRegDataValue(y));
 }
 
 fn sbc_r(self: *Self, op_code: u8) void {
@@ -481,6 +480,20 @@ fn add_int(change: u8) void {
     const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change)));
     a_reg.* = result[0];
     flags.c = result[1];
+    flags.n = 0;
+    flags.h = half_result[1];
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn adc_int(change: u8) void {
+    const result = @addWithOverflow(a_reg.*, change + flags.c);
+    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change + flags.c)));
+    flags.c = result[1];
+    a_reg.* = result[0];
     flags.n = 0;
     flags.h = half_result[1];
     if (result[0] & 0xFF == 0) {
@@ -513,7 +526,7 @@ fn cp_r(self: *Self, op_code: u8) void {
 fn alu_n8(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_alu[y];
-    var change = self.read();
+    const change = self.read();
     const current_value = a_reg.*;
     self.print("{s} A,${X:02}\n", .{ register, change });
     var new_value = current_value;
@@ -523,14 +536,8 @@ fn alu_n8(self: *Self, op_code: u8) void {
         return;
     } else if (y == 1) {
         // ADC
-        change += flags.c;
-        const result = @addWithOverflow(current_value, change);
-        new_value = result[0];
-        a_reg.* = new_value;
-        flags.c = result[1];
-        flags.n = 0;
-        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
-        flags.h = half_result[1];
+        adc_int(change);
+        return;
     } else if (y == 2) {
         // SUB
         const result = @subWithOverflow(current_value, change);
