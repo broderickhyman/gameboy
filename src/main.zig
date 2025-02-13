@@ -53,6 +53,8 @@ pub fn main() !void {
 
     // LCD Hardcode
     main_memory[0xFF44] = 0x90;
+    // main_memory[0xFF44] = 0;
+    // main_memory[0xFF40] = 0b10100010;
 
     // zig fmt: off
     var cpu = Cpu{
@@ -92,7 +94,10 @@ pub fn main() !void {
         // if (cpu.memory[cpu.pc] == 0x18 and cpu.memory[cpu.pc + 1] == 0xFE) {
         //     break;
         // }
-        // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
+        // const object1 = cpu.memory[0xFF00];
+        // if (object1 > 0) {
+        //     std.debug.print("{b:08}\n", .{object1});
+        // }
         // cpu.print_flags();
         // cpu.print("\n", .{});
     }

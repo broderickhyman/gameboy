@@ -218,9 +218,6 @@ fn ldh_a_c(cpu: *Self, _: u8) void {
 
 fn ldh_a8_a(cpu: *Self, _: u8) void {
     const displacement = cpu.read();
-    if (displacement == 0x44) {
-        @breakpoint();
-    }
     cpu.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
     if (address > 0xFF00 and address < 0xFFFF) {
@@ -231,9 +228,6 @@ fn ldh_a8_a(cpu: *Self, _: u8) void {
 
 fn ldh_a_a8(cpu: *Self, _: u8) void {
     const displacement = cpu.read();
-    // if (displacement == 0x44) {
-    //     @breakpoint();
-    // }
     cpu.print("LD A,($FF00+${X})\n", .{displacement});
     const address: u16 = @as(u16, 0xff00) + displacement;
     a_reg.* = cpu.memory[address];
@@ -396,7 +390,9 @@ fn inc_rp(cpu: *Self, op_code: u8) void {
     const p = op_code >> 4 & 0b11;
     const register = reg_p[p];
     cpu.print("INC {s}\n", .{register});
-    reg_p_t[p].* += 1;
+    const data_pointer = reg_p_t[p];
+    const result = @addWithOverflow(data_pointer.*, 1);
+    data_pointer.* = result[0];
 }
 
 fn dec_r(cpu: *Self, op_code: u8) void {
