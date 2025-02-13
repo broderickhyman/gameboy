@@ -32,17 +32,17 @@ pub fn main() !void {
     }
     const file_name: []const u8 = switch (file_num) {
         0 => "dmg_boot.bin",
-        1 => "01-special.gb",
+        1 => "01-special.gb", // Issue with Pop AF
         2 => "02-interrupts.gb",
         3 => "03-op sp,hl.gb",
         4 => "04-op r,imm.gb",
         5 => "05-op rp.gb",
-        6 => "06-ld r,r.gb",
-        7 => "07-jr,jp,call,ret,rst.gb",
+        6 => "06-ld r,r.gb", // Passed
+        7 => "07-jr,jp,call,ret,rst.gb", // Passed
         8 => "08-misc instrs.gb",
-        9 => "09-op r,r.gb",
-        10 => "10-bit ops.gb",
-        11 => "11-op a,(hl).gb",
+        9 => "09-op r,r.gb", // Passed
+        10 => "10-bit ops.gb", // Passed
+        11 => "11-op a,(hl).gb", // DAA
         else => "",
     };
     var paths: [2][]const u8 = undefined;
@@ -83,7 +83,7 @@ pub fn main() !void {
         if (cpu.should_break and cpu.counter > end) {
             break;
         }
-        if (cpu.should_break and cpu.counter >= 2868034) {
+        if (cpu.should_break and cpu.counter >= 148317) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;

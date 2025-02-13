@@ -446,13 +446,13 @@ fn dec_r(self: *Self, op_code: u8) void {
     const y: u3 = @truncate(op_code >> 3);
     const register = reg_8[y];
     self.print("DEC {s}\n", .{register});
-    const current_value = self.getRegDataValue(y);
-    const result = @subWithOverflow(current_value, 1);
-    self.getRegDataPointer(y).* = result[0];
-    flags.n = 1;
-    const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), 1);
+    const pointer = self.getRegDataPointer(y);
+    const half_result = @subWithOverflow(@as(u4, @truncate(pointer.*)), 1);
     flags.h = half_result[1];
-    if (result[0] == 0) {
+    flags.n = 1;
+    const result = @subWithOverflow(pointer.*, 1);
+    pointer.* = result[0];
+    if (pointer.* == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
@@ -463,32 +463,26 @@ fn dec_rp(self: *Self, op_code: u8) void {
     const p: u2 = @truncate(op_code >> 4);
     const register = reg_p[p];
     self.print("DEC {s}\n", .{register});
-    reg_p_t[p].* -= 1;
+    const pointer = reg_p_t[p];
+    const result = @subWithOverflow(pointer.*, 1);
+    pointer.* = result[0];
 }
 
 fn inc_r(self: *Self, op_code: u8) void {
     const y: u3 = @truncate(op_code >> 3);
     const register = reg_8[y];
     self.print("INC {s}\n", .{register});
-    var value: u8 = self.getRegDataValue(y);
-    const overflow = value >> 4 & 1;
-    if (value == 0xFF) {
-        value = 0;
-    } else {
-        value += 1;
-    }
-    self.getRegDataPointer(y).* = value;
-    if (value == 0) {
+    const pointer = self.getRegDataPointer(y);
+
+    const half_result = @addWithOverflow(@as(u4, @truncate(pointer.*)), 1);
+    flags.h = half_result[1];
+    flags.n = 0;
+    const result = @addWithOverflow(pointer.*, 1);
+    pointer.* = result[0];
+    if (pointer.* == 0) {
         flags.z = 1;
     } else {
         flags.z = 0;
-    }
-    flags.n = 0;
-    const new_overflow = value >> 4 & 1;
-    if (new_overflow != overflow) {
-        flags.h = 1;
-    } else {
-        flags.h = 0;
     }
 }
 
@@ -496,9 +490,9 @@ fn inc_rp(self: *Self, op_code: u8) void {
     const p: u2 = @truncate(op_code >> 4);
     const register = reg_p[p];
     self.print("INC {s}\n", .{register});
-    const data_pointer = reg_p_t[p];
-    const result = @addWithOverflow(data_pointer.*, 1);
-    data_pointer.* = result[0];
+    const pointer = reg_p_t[p];
+    const result = @addWithOverflow(pointer.*, 1);
+    pointer.* = result[0];
 }
 
 fn sbc_r(self: *Self, op_code: u8) void {
