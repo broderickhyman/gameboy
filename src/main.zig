@@ -76,18 +76,18 @@ pub fn main() !void {
         };
     // zig fmt: on
 
-    const end: u32 = 1600000;
+    const end: u32 = 5000000;
 
     try cpu.logState();
     while (cpu.pc < cpu.memory.len) {
         if (cpu.should_break and cpu.counter > end) {
             break;
         }
-        if (cpu.should_break and cpu.counter >= 1413059) {
+        if (cpu.should_break and cpu.counter >= 2868034) {
             // if (verbose and cpu.pc == 0xdefb) {
             // if (verbose and sp == 0xdf7e) {
             cpu.should_print = true;
-            cpu.printFlags();
+            // cpu.printFlags();
             @breakpoint();
         }
         if (cpu.counter % 100000 == 0) {
