@@ -35,7 +35,7 @@ pub fn main() !void {
         1 => "01-special.gb", // Issue with Pop AF
         2 => "02-interrupts.gb",
         3 => "03-op sp,hl.gb", // Passed
-        4 => "04-op r,imm.gb",
+        4 => "04-op r,imm.gb", // Passed
         5 => "05-op rp.gb",
         6 => "06-ld r,r.gb", // Passed
         7 => "07-jr,jp,call,ret,rst.gb", // Passed
