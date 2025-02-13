@@ -426,10 +426,10 @@ fn dec_rp(self: *Self, op_code: u8) void {
 }
 
 fn add_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
+    const z = op_code & 0b111;
+    const register = reg_8[z];
     self.print("ADD {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    add_int(self.getRegDataValue(z));
 }
 
 fn add_hl_rp(self: *Self, op_code: u8) void {
@@ -456,6 +456,7 @@ fn sub_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("SUB {s}\n", .{register});
+    // const current_value = self.getRegDataValue(y);
     std.debug.panic("Not implemented", .{});
 }
 
@@ -463,6 +464,7 @@ fn adc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("ADC {s}\n", .{register});
+    // const current_value = self.getRegDataValue(y);
     std.debug.panic("Not implemented", .{});
 }
 
@@ -470,14 +472,42 @@ fn sbc_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("SBC {s}\n", .{register});
+    // const current_value = self.getRegDataValue(y);
     std.debug.panic("Not implemented", .{});
 }
 
+fn add_int(change: u8) void {
+    const result = @addWithOverflow(a_reg.*, change);
+    const half_result = @addWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(change)));
+    a_reg.* = result[0];
+    flags.c = result[1];
+    flags.n = 0;
+    flags.h = half_result[1];
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
+fn cp_int(value: u8) void {
+    const result = @subWithOverflow(a_reg.*, value);
+    flags.c = result[1];
+    flags.n = 1;
+    const half_result = @subWithOverflow(@as(u4, @truncate(a_reg.*)), @as(u4, @truncate(value)));
+    flags.h = half_result[1];
+    if (result[0] & 0xFF == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
+}
+
 fn cp_r(self: *Self, op_code: u8) void {
-    const y = op_code >> 3 & 0b111;
-    const register = reg_8[y];
+    const z = op_code & 0b111;
+    const register = reg_8[z];
     self.print("CP {s}\n", .{register});
-    std.debug.panic("Not implemented", .{});
+    cp_int(self.getRegDataValue(z));
 }
 
 fn alu_n8(self: *Self, op_code: u8) void {
@@ -489,13 +519,8 @@ fn alu_n8(self: *Self, op_code: u8) void {
     var new_value = current_value;
     if (y == 0) {
         // ADD
-        const result = @addWithOverflow(current_value, change);
-        new_value = result[0];
-        a_reg.* = new_value;
-        flags.c = result[1];
-        flags.n = 0;
-        const half_result = @addWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
-        flags.h = half_result[1];
+        add_int(change);
+        return;
     } else if (y == 1) {
         // ADC
         change += flags.c;
@@ -531,12 +556,8 @@ fn alu_n8(self: *Self, op_code: u8) void {
         flags.c = 0;
     } else if (y == 7) {
         // CP
-        const result = @subWithOverflow(current_value, change);
-        new_value = result[0];
-        flags.c = result[1];
-        flags.n = 1;
-        const half_result = @subWithOverflow(@as(u4, @truncate(current_value)), @as(u4, @truncate(change)));
-        flags.h = half_result[1];
+        cp_int(change);
+        return;
     } else {
         std.debug.panic("Not implemented: {s}", .{register});
     }
@@ -553,6 +574,7 @@ fn and_r(self: *Self, op_code: u8) void {
     const y = op_code >> 3 & 0b111;
     const register = reg_8[y];
     self.print("AND A,{s}\n", .{register});
+    // self.getRegDataValue(y)
     std.debug.panic("Not implemented", .{});
 }
 
@@ -638,17 +660,23 @@ fn daa(self: *Self, _: u8) void {
 
 fn cpl(self: *Self, _: u8) void {
     self.print("CPL\n", .{});
-    std.debug.panic("Not implemented", .{});
+    a_reg.* = ~a_reg.*;
+    flags.n = 1;
+    flags.h = 1;
 }
 
 fn scf(self: *Self, _: u8) void {
     self.print("SCF\n", .{});
-    std.debug.panic("Not implemented", .{});
+    flags.n = 0;
+    flags.h = 0;
+    flags.c = 1;
 }
 
 fn ccf(self: *Self, _: u8) void {
     self.print("CCF\n", .{});
-    std.debug.panic("Not implemented", .{});
+    flags.n = 0;
+    flags.h = 0;
+    flags.c = ~flags.c;
 }
 
 // Interrupt
@@ -719,6 +747,7 @@ fn cb_prefix(self: *Self, _: u8) void {
     } else if (x == 1) {
         const register = reg_8[z];
         self.print("BIT {d},{s}\n", .{ y, register });
+        // self.getRegDataValue(y)
         std.debug.panic("BIT Not implemented x:{d}, y:{d}, z:{d}", .{ x, y, z });
     } else {
         self.print("NOP CB\n", .{});
