@@ -32,7 +32,7 @@ pub fn cycle(self: *Self) void {
 pub fn readMemory(self: *Self, address: u16) u8 {
     // LCD Hardcode
     if (address == 0xFF44) {
-        return 0x90;
+        return 0x90; // 144 = VBlank
     }
     // if (address == 0xFF42) {
     //     return 0;
@@ -47,9 +47,9 @@ fn getMemoryPointer(self: *Self, address: u16) *u8 {
         if (address == 0xFF44) {
             @breakpoint();
         }
-        if (address == 0xFF42) {
-            @breakpoint();
-        }
+        // if (address == 0xFF42) {
+        //     @breakpoint();
+        // }
     }
     return &self.memory[address];
 }
