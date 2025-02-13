@@ -240,10 +240,9 @@ fn ld_sp_hl(self: *Self, _: u8) void {
 }
 
 fn ld_hl_sp_e8(self: *Self, _: u8) void {
-    const displacement = self.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
-    self.print("LD HL,SP+${X:02}\n", .{address});
-    std.debug.panic("Not implemented", .{});
+    const displacement: i8 = @bitCast(self.read());
+    self.print("LD HL,SP+{X:02}\n", .{displacement});
+    hl.full = add_sp_e8_int(displacement);
 }
 
 // Jumps
@@ -274,8 +273,8 @@ fn call_cc_a16(self: *Self, op_code: u8) void {
 fn jr_cc_e8(self: *Self, op_code: u8) void {
     const y_offset: u3 = @truncate((op_code >> 3) - 4);
     const condition = reg_cc[y_offset];
-    const displacement = self.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
+    const displacement: i8 = @bitCast(self.read());
+    const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + displacement)));
     self.print("JR {s},Addr_{x:04}\n", .{ condition, address });
     if (self.checkCondition(y_offset)) {
         self.pc = address;
@@ -283,10 +282,9 @@ fn jr_cc_e8(self: *Self, op_code: u8) void {
 }
 
 fn jr_e8(self: *Self, _: u8) void {
-    const displacement = self.read();
-    const jump = @as(i8, @bitCast(displacement));
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + jump));
-    self.print("JR Addr_{x:04} {x:02}\n", .{ address, jump });
+    const displacement: i8 = @bitCast(self.read());
+    const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + displacement)));
+    self.print("JR Addr_{x:04}\n", .{address});
     self.pc = address;
 }
 
@@ -389,10 +387,21 @@ fn add_r(self: *Self, op_code: u8) void {
 }
 
 fn add_sp_e8(self: *Self, _: u8) void {
-    const displacement = self.read();
-    const address = @as(u16, @bitCast(@as(i16, @bitCast(self.pc)) + @as(i8, @bitCast(displacement))));
-    self.print("ADD SP,ADDR_${X:02}\n", .{address});
-    std.debug.panic("Not implemented", .{});
+    const displacement: i8 = @bitCast(self.read());
+    self.print("ADD SP,{X:02}\n", .{displacement});
+    sp = add_sp_e8_int(displacement);
+}
+
+fn add_sp_e8_int(displacement: i8) u16 {
+    const signed_sp = @as(i16, @bitCast(sp));
+    const result = @addWithOverflow(signed_sp, displacement);
+    const half_result = @addWithOverflow(@as(u8, @truncate(sp)), @as(u8, @truncate(@as(u8, @bitCast(displacement)))));
+    const quarter_result = @addWithOverflow(@as(u4, @truncate(sp)), @as(u4, @truncate(@as(u8, @bitCast(displacement)))));
+    flags.z = 0;
+    flags.n = 0;
+    flags.h = quarter_result[1];
+    flags.c = half_result[1];
+    return @truncate(@as(u16, @bitCast(result[0])));
 }
 
 fn add_hl_rp(self: *Self, op_code: u8) void {
