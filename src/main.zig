@@ -16,12 +16,19 @@ pub fn main() !void {
     defer std.process.argsFree(gpa_allocator, args);
     // std.debug.print("${s}\n", .{args});
     var verbose = false;
+    var debug = false;
     var file_num: u4 = 7;
-    if (args.len > 1) {
-        file_num = try std.fmt.parseInt(u4, args[1], 10);
-    }
-    if (args.len > 2 and std.mem.eql(u8, args[2], "--verbose")) {
-        verbose = true;
+    var i: u3 = 1;
+    while (i < args.len) {
+        const arg = args[i];
+        i += 1;
+        if (std.mem.eql(u8, arg, "--verbose")) {
+            verbose = true;
+        } else if (std.mem.eql(u8, arg, "--debug")) {
+            debug = true;
+        } else {
+            file_num = try std.fmt.parseInt(u4, args[1], 10);
+        }
     }
 
     // const file = try std.fs.cwd().openFile("roms/dmg_boot.bin", .{});
@@ -56,45 +63,30 @@ pub fn main() !void {
         .memory = main_memory,
         .pc = 0x0100,
         .counter = 1,
-        .should_print = false,
-        .should_break = verbose,
+        .should_print = verbose or !debug,
+        .should_break = debug,
+        .debug = debug,
         .std_out = std_out
         };
     // zig fmt: on
 
     const end: u32 = 1000000;
 
-    if (!verbose or cpu.should_print) {
-        try cpu.logState();
-    }
-    // cpu.print_flags();
+    try cpu.logState();
     while (cpu.pc < cpu.memory.len) {
-        if (verbose and cpu.counter > end) {
+        if (cpu.should_break and cpu.counter > end) {
             break;
         }
-        cpu.cycle(verbose);
-        if (!verbose or cpu.should_print) {
-            try cpu.logState();
-        }
-        // std.debug.print("{b:08} {b:08} {b:08} {b:08}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF02], cpu.memory[0xFFFF], cpu.memory[0xFF0F] });
+        cpu.cycle();
+        try cpu.logState();
         const serial_value = cpu.memory[0xFF01];
         if (serial_value > 0) {
-            // std.debug.print("{b:08} {c}\n", .{ cpu.memory[0xFF01], cpu.memory[0xFF01] });
             std.debug.print("{c}", .{serial_value});
             cpu.memory[0xFF01] = 0;
             if (serial_value == 'd') {
                 // break;
             }
         }
-        // if (cpu.memory[cpu.pc] == 0x18 and cpu.memory[cpu.pc + 1] == 0xFE) {
-        //     break;
-        // }
-        // const object1 = cpu.memory[0xFF00];
-        // if (object1 > 0) {
-        //     std.debug.print("{b:08}\n", .{object1});
-        // }
-        // cpu.print_flags();
-        // cpu.print("\n", .{});
     }
     // std.debug.print("\nCount: {d}\n", .{cpu.counter});
 }

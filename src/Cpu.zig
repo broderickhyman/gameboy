@@ -10,14 +10,15 @@ const Self = @This();
 memory: []u8,
 pc: u16,
 counter: u32,
+debug: bool,
 should_print: bool,
 should_break: bool,
 std_out: std.fs.File.Writer,
 
-pub fn cycle(self: *Self, verbose: bool) void {
+pub fn cycle(self: *Self) void {
     const op_code = self.read();
 
-    if (verbose and self.counter == 560000) {
+    if (self.should_break and self.counter == 500000) {
         // if (verbose and self.pc == 0xdefb) {
         // if (verbose and sp == 0xdf7e) {
         self.should_print = true;
@@ -49,7 +50,7 @@ fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.should_print) {
+    if (self.debug) {
         std.debug.print(fmt, args);
     }
 }
@@ -61,8 +62,10 @@ fn printFlags(self: *Self) void {
     self.print("z: {b}\n", .{flags.z});
 }
 pub fn logState(self: *Self) !void {
+    if (!self.should_print) {
+        return;
+    }
     try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.memory[self.pc], self.memory[self.pc + 1], self.memory[self.pc + 2], self.memory[self.pc + 3] });
-    self.print("{d}", .{self.counter});
 }
 fn getRegDataPointer(self: *Self, index: u8) *u8 {
     var data_pointer = reg_8_t[index];

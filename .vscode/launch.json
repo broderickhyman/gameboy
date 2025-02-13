@@ -7,7 +7,7 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug",
+      "name": "Regular",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["7"],
       "cwd": "${workspaceFolder}",
@@ -16,9 +16,18 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Debug",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["7", "--debug"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Debug Verbose",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["7", "--verbose"],
+      "args": ["7", "--debug", "--verbose"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }
