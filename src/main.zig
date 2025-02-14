@@ -12,14 +12,17 @@ pub fn main() !void {
     });
     defer SDL.quit();
 
-    const scale: u16 = 2;
+    const scale: u16 = 1;
+    const scale_i: i16 = @bitCast(scale);
+    const screen_width = 256 * scale;
+    const screen_height = 256 * scale;
 
     var window = try SDL.createWindow(
         "Gameboy",
         .{ .centered = {} },
         .{ .centered = {} },
-        256 * scale,
-        256 * scale,
+        screen_width,
+        screen_height,
         .{ .vis = .shown },
     );
     defer window.destroy();
@@ -42,10 +45,9 @@ pub fn main() !void {
     var debug = false;
     var should_print = true;
     var file_num: u4 = 7;
-    var i: u3 = 1;
-    while (i < args.len) {
-        const arg = args[i];
-        i += 1;
+    var args_index: u3 = 1;
+    while (args_index < args.len) : (args_index += 1) {
+        const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
             verbose = true;
         } else if (std.mem.eql(u8, arg, "--debug")) {
@@ -93,10 +95,10 @@ pub fn main() !void {
 
     if (file_num == 0) {
         var logo_index: u16 = 0;
-        while (logo_index < 0x30) {
+        while (logo_index < 0x30) : (logo_index += 1) {
             main_memory[0x104 + logo_index] = main_memory[0xA8 + logo_index];
             // std.debug.print("{X:02}\n", .{main_memory[0x104 + logo_index]});
-            logo_index += 1;
+
         }
         // Checksum
         main_memory[0x14D] = 0xE7;
@@ -142,13 +144,6 @@ pub fn main() !void {
                 // break;
             }
         }
-        const scx: u9 = main_memory[0xFF43];
-        const scy: u9 = main_memory[0xFF42];
-        if (scy > 0 and cpu.counter % 100 == 0) {
-            const x_coord = (scx + 159) % 256;
-            const y_coord = (scy + 143) % 256;
-            std.debug.print("SCX:{d:3} SCY:{d:3} X:{d:3} Y:{d:3}\n", .{ scx, scy, x_coord, y_coord });
-        }
         if (main_memory[0xFF50] > 0) {
             std.debug.print("Disable Boot ROM\n", .{});
             // @breakpoint();
@@ -167,46 +162,66 @@ pub fn main() !void {
 
         try renderer.setColorRGB(0xFF, 0xFF, 0xFF);
         try renderer.clear();
+
+        try renderer.setColorRGB(0xFF, 0, 0);
+        const scx: u9 = main_memory[0xFF43];
+        const scy: u9 = main_memory[0xFF42];
+        const width = 160 * scale;
+        const height = 144 * scale;
+        var x_coord: i16 = (((scx + 159) % 256) * scale_i) - width;
+        var y_coord: i16 = (((scy + 143) % 256) * scale_i) - height;
+        var background_viewport = SDL.Rectangle{ .x = x_coord, .y = y_coord, .width = width, .height = height };
+        try renderer.drawRect(background_viewport);
+        if (x_coord < 0 or y_coord < 0) {
+            if (x_coord < 0) {
+                x_coord += 256 * scale;
+            }
+            if (y_coord < 0) {
+                y_coord += 256 * scale;
+            }
+            background_viewport = SDL.Rectangle{ .x = x_coord, .y = y_coord, .width = width, .height = height };
+            try renderer.drawRect(background_viewport);
+        }
+
         try renderer.setColorRGB(0, 0, 0);
-        // try renderer .drawLine(0, 0, 256, 256);
+        var x: u6 = 0;
         var y: u6 = 0;
-        // var y: u8 = 0x98FF - 0x9800;
+        var row: u4 = 0;
+        var chunk_index: u4 = 0;
         const address_offset: u16 = 0x9800;
-        while (y < 32) {
-            var x: u6 = 0;
-            while (x < 32) {
+        while (y < 32) : (y += 1) {
+            x = 0;
+            while (x < 32) : (x += 1) {
                 const address = address_offset + (@as(u16, y) * 32) + x;
                 const tile_map_index = main_memory[address];
-                if (tile_map_index > 0) {
-                    // try renderer.drawPoint(x * 8, y * 8);
-                    const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
-                    const tile_x = @as(u8, x) * 8 * scale;
-                    const tile_y = @as(u8, y) * 8 * scale;
-                    var row: u4 = 0;
-                    // var column: u4 = 0;
-                    while (row < 8) {
-                        // while (column < 2) {
-                            const chunk_1 = main_memory[tile_address + (row * 2) + 1];
-                            const chunk_2 = main_memory[tile_address + (row * 2) + 2];
-                            if (chunk_1 > 0 or chunk_2 > 0) {
-                                const chunk_x = tile_x;
-                                const chunk_y = tile_y + (row * scale);
-                                const rect = SDL.Rectangle{
-                                    .x = chunk_x,
-                                    .y = chunk_y,
-                                    .width = 8 * scale,
-                                    .height = 1 * scale
-                                };
-                                try renderer.drawRect(rect);
-                            }
-                            // column += 1;
-                        // }
-                        row += 1;
+                if (tile_map_index <= 0) {
+                    continue;
+                }
+                const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
+                const tile_x = @as(u8, x) * 8 * scale;
+                const tile_y = @as(u8, y) * 8 * scale;
+                // const temp_rect = SDL.Rectangle{ .x = tile_x, .y = tile_y, .width = 8 * scale, .height = 8 * scale };
+                // try renderer.drawRect(temp_rect);
+                row = 0;
+                while (row < 8) : (row += 1) {
+                    const current_byte_address = tile_address + (row * 2);
+                    const chunk_1 = main_memory[current_byte_address];
+                    const chunk_2 = main_memory[current_byte_address + 1];
+                    chunk_index = 0;
+                    while (chunk_index < 8) : (chunk_index += 1) {
+                        const shift: u3 = @truncate(7 - chunk_index);
+                        const bit_1: u1 = @truncate(chunk_1 >> shift);
+                        const bit_2: u1 = @truncate(chunk_2 >> shift);
+                        if (bit_1 == 0 and bit_2 == 0) {
+                            continue;
+                        }
+                        const chunk_x = tile_x + (chunk_index * scale);
+                        const chunk_y = tile_y + (row * scale);
+                        const rect = SDL.Rectangle{ .x = chunk_x, .y = chunk_y, .width = scale, .height = scale };
+                        try renderer.fillRect(rect);
                     }
                 }
-                x += 1;
             }
-            y += 1;
         }
 
         renderer.present();
