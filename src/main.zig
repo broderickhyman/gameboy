@@ -12,12 +12,14 @@ pub fn main() !void {
     });
     defer SDL.quit();
 
+    const scale: u16 = 2;
+
     var window = try SDL.createWindow(
         "Gameboy",
         .{ .centered = {} },
         .{ .centered = {} },
-        256,
-        256,
+        256 * scale,
+        256 * scale,
         .{ .vis = .shown },
     );
     defer window.destroy();
@@ -178,20 +180,27 @@ pub fn main() !void {
                 if (tile_map_index > 0) {
                     // try renderer.drawPoint(x * 8, y * 8);
                     const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
-                    const tile_x = @as(u8, x) * 8;
-                    const tile_y = @as(u8, y) * 8;
+                    const tile_x = @as(u8, x) * 8 * scale;
+                    const tile_y = @as(u8, y) * 8 * scale;
                     var row: u4 = 0;
-                    var column: u4 = 0;
+                    // var column: u4 = 0;
                     while (row < 8) {
-                        while (column < 2) {
-                            const chunk = main_memory[tile_address + (row * 2) + column];
-                            if (chunk > 0) {
-                                const chunk_x = tile_x + column;
-                                const chunk_y = tile_y + row;
-                                try renderer.drawPoint(chunk_x, chunk_y);
+                        // while (column < 2) {
+                            const chunk_1 = main_memory[tile_address + (row * 2) + 1];
+                            const chunk_2 = main_memory[tile_address + (row * 2) + 2];
+                            if (chunk_1 > 0 or chunk_2 > 0) {
+                                const chunk_x = tile_x;
+                                const chunk_y = tile_y + (row * scale);
+                                const rect = SDL.Rectangle{
+                                    .x = chunk_x,
+                                    .y = chunk_y,
+                                    .width = 8 * scale,
+                                    .height = 1 * scale
+                                };
+                                try renderer.drawRect(rect);
                             }
-                            column += 1;
-                        }
+                            // column += 1;
+                        // }
                         row += 1;
                     }
                 }
