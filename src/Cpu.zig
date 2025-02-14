@@ -41,10 +41,10 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     return self.memory[address];
 }
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
-    if (address == 0xFF50) {
-        std.debug.print("Disable Boot ROM\n", .{});
-        @breakpoint();
-    }
+    // if (address == 0xFF50) {
+    //     std.debug.print("Disable Boot ROM\n", .{});
+    //     @breakpoint();
+    // }
     if (self.debug) {
         if (address == 0x134) {
             @breakpoint();
@@ -62,7 +62,7 @@ fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.debug and self.should_print) {
+    if (self.verbose) {
         std.debug.print(fmt, args);
     }
 }

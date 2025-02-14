@@ -17,6 +17,7 @@ pub fn main() !void {
     // std.debug.print("${s}\n", .{args});
     var verbose = false;
     var debug = false;
+    var should_print = true;
     var file_num: u4 = 7;
     var i: u3 = 1;
     while (i < args.len) {
@@ -26,9 +27,13 @@ pub fn main() !void {
             verbose = true;
         } else if (std.mem.eql(u8, arg, "--debug")) {
             debug = true;
+            should_print = false;
         } else {
             file_num = try std.fmt.parseInt(u4, args[1], 10);
         }
+    }
+    if (verbose) {
+        should_print = true;
     }
     const file_name: []const u8 = switch (file_num) {
         0 => "dmg_boot.bin",
@@ -79,7 +84,7 @@ pub fn main() !void {
         .memory = main_memory,
         .pc = start_pc,
         .counter = 1,
-        .should_print = verbose or !debug,
+        .should_print = should_print,
         .should_break = debug,
         .debug = debug,
         .verbose = verbose,
@@ -97,9 +102,9 @@ pub fn main() !void {
         // if (cpu.should_break and cpu.counter >= 250) {
         if (cpu.should_break and cpu.pc == 0xF9) {
             // if (cpu.should_break and sp == 0xdf7e) {
-            cpu.should_print = true;
+            // cpu.should_print = true;
             // cpu.printFlags();
-            @breakpoint();
+            // @breakpoint();
         }
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
@@ -113,6 +118,18 @@ pub fn main() !void {
             if (serial_value == 'd') {
                 // break;
             }
+        }
+        const scx: u9 = main_memory[0xFF43];
+        const scy: u9 = main_memory[0xFF42];
+        if (scy > 0 and cpu.counter % 100 == 0) {
+            const x_coord = (scx + 159) % 256;
+            const y_coord = (scy + 143) % 256;
+            std.debug.print("SCX:{d:3} SCY:{d:3} X:{d:3} Y:{d:3}\n", .{ scx, scy, x_coord, y_coord });
+        }
+        if (main_memory[0xFF50] > 0) {
+            std.debug.print("Disable Boot ROM\n", .{});
+            // @breakpoint();
+            break;
         }
     }
     // std.debug.print("\nCount: {d}\n", .{cpu.counter});
