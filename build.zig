@@ -1,4 +1,5 @@
 const std = @import("std");
+const sdl = @import("sdl"); // Replace with the actual name in your build.zig.zon
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -14,6 +15,10 @@ pub fn build(b: *std.Build) void {
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
+
+    // Create a new instance of the SDL2 Sdk
+    // Specifiy dependency name explicitly if necessary (use sdl by default)
+    const sdk = sdl.init(b, .{});
 
     // We will also create a module for our other entry point, 'main.zig'.
     const exe_mod = b.createModule(.{
@@ -32,6 +37,11 @@ pub fn build(b: *std.Build) void {
         .name = "gameboy",
         .root_module = exe_mod,
     });
+
+    sdk.link(exe, .dynamic, sdl.Library.SDL2); // link SDL2 as a shared library
+
+    // Add "sdl2" package that exposes the SDL2 api (like SDL_Init or SDL_CreateWindow)
+    exe.root_module.addImport("sdl2", sdk.getWrapperModule());
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -61,17 +71,17 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const exe_check = b.addExecutable(.{
-        .name = "foo",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+    // const exe_check = b.addExecutable(.{
+    //     .name = "foo",
+    //     .root_source_file = b.path("src/main.zig"),
+    //     .target = target,
+    //     .optimize = optimize,
+    // });
 
     // These two lines you might want to copy
     // (make sure to rename 'exe_check')
-    const check = b.step("check", "Check if foo compiles");
-    check.dependOn(&exe_check.step);
+    // const check = b.step("check", "Check if foo compiles");
+    // check.dependOn(&exe_check.step);
 
     const exe_unit_tests = b.addTest(.{
         .root_module = exe_mod,

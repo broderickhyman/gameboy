@@ -1,9 +1,30 @@
 const std = @import("std");
 const Cpu = @import("Cpu.zig");
+const SDL = @import("sdl2");
 
 // /home/broderick/code/zig/gameboy/zig-out/bin/gameboy | /home/broderick/code/zig/gameboy/../gameboy-doctor/gameboy-doctor - cpu_instrs 7
 
 pub fn main() !void {
+    try SDL.init(.{
+        .video = true,
+        .events = true,
+        .audio = true,
+    });
+    defer SDL.quit();
+
+    var window = try SDL.createWindow(
+        "Gameboy",
+        .{ .centered = {} },
+        .{ .centered = {} },
+        256,
+        256,
+        .{ .vis = .shown },
+    );
+    defer window.destroy();
+
+    var renderer = try SDL.createRenderer(window, null, .{ .accelerated = true });
+    defer renderer.destroy();
+
     var buffer: [0xFFFF + 1]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const fba_allocator = fba.allocator();
@@ -92,13 +113,13 @@ pub fn main() !void {
         };
     // zig fmt: on
 
-    const end: u32 = 5000000;
+    // const end: u32 = 10;
 
     try cpu.logState();
     while (cpu.pc < cpu.memory.len) {
-        if (cpu.should_break and cpu.counter > end) {
-            break;
-        }
+        // if (cpu.should_break and cpu.counter > end) {
+        //     break;
+        // }
         // if (cpu.should_break and cpu.counter >= 250) {
         if (cpu.should_break and cpu.pc == 0xF9) {
             // if (cpu.should_break and sp == 0xdf7e) {
@@ -132,5 +153,53 @@ pub fn main() !void {
             break;
         }
     }
+
     // std.debug.print("\nCount: {d}\n", .{cpu.counter});
+    mainLoop: while (true) {
+        while (SDL.pollEvent()) |ev| {
+            switch (ev) {
+                .quit => break :mainLoop,
+                else => {},
+            }
+        }
+
+        try renderer.setColorRGB(0xFF, 0xFF, 0xFF);
+        try renderer.clear();
+        try renderer.setColorRGB(0, 0, 0);
+        // try renderer .drawLine(0, 0, 256, 256);
+        var y: u6 = 0;
+        // var y: u8 = 0x98FF - 0x9800;
+        const address_offset: u16 = 0x9800;
+        while (y < 32) {
+            var x: u6 = 0;
+            while (x < 32) {
+                const address = address_offset + (@as(u16, y) * 32) + x;
+                const tile_map_index = main_memory[address];
+                if (tile_map_index > 0) {
+                    // try renderer.drawPoint(x * 8, y * 8);
+                    const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
+                    const tile_x = @as(u8, x) * 8;
+                    const tile_y = @as(u8, y) * 8;
+                    var row: u4 = 0;
+                    var column: u4 = 0;
+                    while (row < 8) {
+                        while (column < 2) {
+                            const chunk = main_memory[tile_address + (row * 2) + column];
+                            if (chunk > 0) {
+                                const chunk_x = tile_x + column;
+                                const chunk_y = tile_y + row;
+                                try renderer.drawPoint(chunk_x, chunk_y);
+                            }
+                            column += 1;
+                        }
+                        row += 1;
+                    }
+                }
+                x += 1;
+            }
+            y += 1;
+        }
+
+        renderer.present();
+    }
 }
