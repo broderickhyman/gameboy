@@ -42,7 +42,7 @@ pub fn main() !void {
         8 => "08-misc instrs.gb", // Passed
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
-        11 => "11-op a,(hl).gb", // DAA
+        11 => "11-op a,(hl).gb", // Passed
         else => "",
     };
     var paths: [2][]const u8 = undefined;
