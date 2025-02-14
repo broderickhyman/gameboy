@@ -13,7 +13,6 @@ counter: u32,
 debug: bool,
 verbose: bool,
 should_print: bool,
-should_break: bool,
 std_out: std.fs.File.Writer,
 
 pub fn cycle(self: *Self) void {
