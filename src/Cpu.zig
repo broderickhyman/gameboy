@@ -742,10 +742,34 @@ fn rr_int(pointer: *u8) void {
 }
 
 fn daa(self: *Self, _: u8) void {
-    // Complicated
-    // Uses N and H flags
     self.print("DAA\n", .{});
-    std.debug.panic("Not implemented", .{});
+    var adjustment: u8 = 0;
+    if (flags.n == 1) {
+        if (flags.h == 1) {
+            adjustment += 0x6;
+        }
+        if (flags.c == 1) {
+            adjustment += 0x60;
+        }
+        const result = @subWithOverflow(a_reg.*, adjustment);
+        a_reg.* = result[0];
+    } else {
+        if (flags.h == 1 or (a_reg.* & 0xF) > 0x9) {
+            adjustment += 0x6;
+        }
+        if (flags.c == 1 or a_reg.* > 0x99) {
+            adjustment += 0x60;
+            flags.c = 1;
+        }
+        const result = @addWithOverflow(a_reg.*, adjustment);
+        a_reg.* = result[0];
+    }
+    flags.h = 0;
+    if (a_reg.* == 0) {
+        flags.z = 1;
+    } else {
+        flags.z = 0;
+    }
 }
 
 fn cpl(self: *Self, _: u8) void {
@@ -772,15 +796,18 @@ fn ccf(self: *Self, _: u8) void {
 // Interrupt
 
 fn halt(self: *Self, _: u8) void {
+    // Low Power Mode
     self.print("HALT\n", .{});
-    std.debug.panic("Not implemented", .{});
 }
 
 fn di(self: *Self, _: u8) void {
+    // Disable Interrupts by clearing the IME flag.
     self.print("DI\n", .{});
 }
 
 fn ei(self: *Self, _: u8) void {
+    // Enable Interrupts by setting the IME flag.
+    // The flag is only set after the instruction following EI.
     self.print("EI\n", .{});
 }
 

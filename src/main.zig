@@ -32,7 +32,7 @@ pub fn main() !void {
     }
     const file_name: []const u8 = switch (file_num) {
         0 => "dmg_boot.bin",
-        1 => "01-special.gb", // DAA
+        1 => "01-special.gb", // Passed
         2 => "02-interrupts.gb",
         3 => "03-op sp,hl.gb", // Passed
         4 => "04-op r,imm.gb", // Passed
