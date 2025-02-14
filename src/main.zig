@@ -63,6 +63,17 @@ pub fn main() !void {
     @memset(main_memory, 0);
     _ = try file.readAll(main_memory);
 
+    if (file_num == 0) {
+        var logo_index: u16 = 0;
+        while (logo_index < 0x30) {
+            main_memory[0x104 + logo_index] = main_memory[0xA8 + logo_index];
+            // std.debug.print("{X:02}\n", .{main_memory[0x104 + logo_index]});
+            logo_index += 1;
+        }
+        // Checksum
+        main_memory[0x14D] = 0xE7;
+    }
+
     // zig fmt: off
     var cpu = Cpu{
         .memory = main_memory,
@@ -83,9 +94,9 @@ pub fn main() !void {
         if (cpu.should_break and cpu.counter > end) {
             break;
         }
-        if (cpu.should_break and cpu.counter >= 208108) {
-            // if (verbose and cpu.pc == 0xdefb) {
-            // if (verbose and sp == 0xdf7e) {
+        // if (cpu.should_break and cpu.counter >= 250) {
+        if (cpu.should_break and cpu.pc == 0xF9) {
+            // if (cpu.should_break and sp == 0xdf7e) {
             cpu.should_print = true;
             // cpu.printFlags();
             @breakpoint();

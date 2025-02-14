@@ -31,22 +31,26 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     // }
     // main_memory[0xFF44] = 0;
     // main_memory[0xFF40] = 0b10100010;
-    // if (self.debug) {
-    //     if (address == 0xDF7E or address == 0xC663) {
-    //         @breakpoint();
-    //         std.debug.print("{X:02} - Read\n", .{self.memory[address]});
-    //     }
-    // }
+    if (self.debug) {
+        if (address == 0x134) {
+            // @breakpoint();
+            //         std.debug.print("{X:02} - Read\n", .{self.memory[address]});
+        }
+    }
 
     return self.memory[address];
 }
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
-    // if (self.debug) {
-    //     if (address == 0xDF7E or address == 0xC663) {
-    //         @breakpoint();
-    //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
-    //     }
-    // }
+    if (address == 0xFF50) {
+        std.debug.print("Disable Boot ROM\n", .{});
+        @breakpoint();
+    }
+    if (self.debug) {
+        if (address == 0x134) {
+            @breakpoint();
+            //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
+        }
+    }
     return &self.memory[address];
 }
 fn read(self: *Self) u8 {
@@ -281,8 +285,8 @@ fn call_cc_a16(self: *Self, op_code: u8) void {
 fn jr_cc_e8(self: *Self, op_code: u8) void {
     const y_offset: u3 = @truncate((op_code >> 3) - 4);
     const condition = reg_cc[y_offset];
-    const displacement: i8 = @bitCast(self.read());
-    const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + displacement)));
+    const displacement = self.read();
+    const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + @as(i8, @bitCast(displacement)))));
     self.print("JR {s},Addr_{x:04}\n", .{ condition, address });
     if (self.checkCondition(y_offset)) {
         self.pc = address;
