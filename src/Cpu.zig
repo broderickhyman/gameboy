@@ -31,18 +31,22 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     // }
     // main_memory[0xFF44] = 0;
     // main_memory[0xFF40] = 0b10100010;
+    // if (self.debug) {
+    //     if (address == 0xDF7E or address == 0xC663) {
+    //         @breakpoint();
+    //         std.debug.print("{X:02} - Read\n", .{self.memory[address]});
+    //     }
+    // }
 
     return self.memory[address];
 }
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
-    if (self.debug) {
-        if (address == 0xFF44) {
-            @breakpoint();
-        }
-        // if (address == 0xFF42) {
-        //     @breakpoint();
-        // }
-    }
+    // if (self.debug) {
+    //     if (address == 0xDF7E or address == 0xC663) {
+    //         @breakpoint();
+    //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
+    //     }
+    // }
     return &self.memory[address];
 }
 fn read(self: *Self) u8 {
@@ -660,14 +664,22 @@ fn push_rp2(self: *Self, op_code: u8) void {
     const p: u2 = @truncate(op_code >> 4);
     const register = reg_p2[p];
     self.print("PUSH {s}\n", .{register});
-    push(self, reg_p2_t[p].*);
+    if (p == 3) {
+        push(self, af.af & 0xFFF0);
+    } else {
+        push(self, reg_p2_t[p].*);
+    }
 }
 
 fn pop_rp2(self: *Self, op_code: u8) void {
     const p: u2 = @truncate(op_code >> 4);
     const register = reg_p2[p];
     self.print("POP {s}\n", .{register});
-    reg_p2_t[p].* = pop(self);
+    if (p == 3) {
+        reg_p2_t[p].* = pop(self) & 0xFFF0;
+    } else {
+        reg_p2_t[p].* = pop(self);
+    }
 }
 
 // Bit shift
