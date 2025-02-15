@@ -22,12 +22,16 @@ pub fn main() !void {
     var file_num: u8 = 7;
     var args_index: u3 = 1;
     var is_doctor_test = false;
+    var display = false;
     while (args_index < args.len) : (args_index += 1) {
         const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
             verbose = true;
         } else if (std.mem.eql(u8, arg, "--debug")) {
             debug = true;
+            should_print = false;
+        } else if (std.mem.eql(u8, arg, "--display")) {
+            display = true;
             should_print = false;
         } else {
             file_num = try std.fmt.parseInt(u4, arg, 10);
@@ -61,8 +65,8 @@ pub fn main() !void {
     } else if (file_num > 11) {
         paths[0] = "../roms/";
     } else {
-        is_doctor_test = true;
-        should_print = true;
+        is_doctor_test = !display;
+        // should_print = true;
         paths[0] = "../gb-test-roms/cpu_instrs/individual/";
     }
     paths[1] = file_name;
@@ -86,7 +90,11 @@ pub fn main() !void {
         .debug = debug,
         .verbose = verbose,
         .std_out = std_out,
-        .is_doctor_test = is_doctor_test
+        .is_doctor_test = is_doctor_test,
+        .ime = 0,
+        .extra_dots = 0,
+        .extra_timer_cycles = 0,
+        .div_counter = 0
         };
     // zig fmt: on
 
@@ -294,6 +302,9 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
+        if (cpu.counter > 151340) {
+            @breakpoint();
+        }
         _ = try runCpu(cpu);
     }
 }
@@ -309,7 +320,10 @@ fn runCpu(cpu: *Cpu) !u8 {
             // break;
         }
     }
-    return dots;
+    cpu.handleTimer(dots);
+    const interrupt_dots = cpu.handleInterrupts();
+    cpu.handleTimer(interrupt_dots);
+    return dots + interrupt_dots;
 }
 
 fn fakeCartridge(cpu: *Cpu) void {

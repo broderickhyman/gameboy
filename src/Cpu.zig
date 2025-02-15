@@ -15,12 +15,97 @@ verbose: bool,
 should_print: bool,
 std_out: std.fs.File.Writer,
 is_doctor_test: bool,
+ime: u1,
+extra_dots: u8,
+extra_timer_cycles: u10,
+div_counter: u10,
 
 pub fn cycle(self: *Self) u8 {
     const op_code = self.read();
     self.counter += @addWithOverflow(self.counter, 1)[0];
     return op_lookup[op_code](self, op_code);
 }
+
+pub fn handleInterrupts(self: *Self) u8 {
+    if (self.ime == 0) {
+        return 0;
+    }
+    const enabled = self.getMemoryPointer(0xFFFF);
+    const flag = self.getMemoryPointer(0xFF0F);
+    if (enabled.* == 0 or flag.* == 0) {
+        return 0;
+    }
+    if (self.handleInterrupt(enabled, flag, 0, 0x40)) {
+        // VBlank
+        return 20;
+    }
+    if (self.handleInterrupt(enabled, flag, 1, 0x48)) {
+        // LCD
+        return 20;
+    }
+    if (self.handleInterrupt(enabled, flag, 2, 0x50)) {
+        // Timer
+        return 20;
+    }
+    if (self.handleInterrupt(enabled, flag, 3, 0x58)) {
+        // Serial
+        return 20;
+    }
+    if (self.handleInterrupt(enabled, flag, 4, 0x60)) {
+        // Joypad
+        return 20;
+    }
+    return 0;
+}
+
+fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16) bool {
+    const is_enabled = enabled.* >> shift & 0b1;
+    const is_flagged = flag.* >> shift & 0b1;
+    if (is_enabled == 1 and is_flagged == 1) {
+        self.ime = 0;
+        reset_bit(flag, shift);
+        call_int(self, address);
+        return true;
+    }
+    return false;
+}
+
+pub fn handleTimer(self: *Self, dots: u8) void {
+    self.extra_dots += dots;
+    const cycles: u8 = self.extra_dots / 4;
+    self.extra_dots -= cycles * 4;
+    self.div_counter += cycles;
+    if (self.div_counter > 64) {
+        self.div_counter -= 64;
+        const div_pointer = self.getMemoryPointer(0xFF04);
+        const div_result = @addWithOverflow(div_pointer.*, 1);
+        div_pointer.* = div_result[0];
+    }
+    const tac = self.readMemory(0xFF07);
+    const enabled = tac >> 2 & 0b1;
+    if (enabled == 1) {
+        const timer_pointer = self.getMemoryPointer(0xFF05);
+        const clock_select: u10 = switch (tac & 0x11) {
+            1 => 4,
+            2 => 16,
+            3 => 64,
+            else => 256,
+        };
+        self.extra_timer_cycles += cycles;
+        const ticks: u10 = self.extra_timer_cycles / clock_select;
+        self.extra_timer_cycles -= ticks * clock_select;
+        const timer_result = @addWithOverflow(timer_pointer.*, ticks);
+        if (timer_result[1] == 1) {
+            // Set timer interrupt
+            set_bit(self.getMemoryPointer(0xFF0F), 2);
+            // Timer modulo
+            timer_pointer.* = self.readMemory(0xFF06);
+        } else {
+            timer_pointer.* = @truncate(timer_result[0]);
+        }
+    }
+}
+
 pub fn readMemory(self: *Self, address: u16) u8 {
     // LCD Hardcode
     if (address == 0xFF44) {
@@ -38,6 +123,7 @@ pub fn readMemory(self: *Self, address: u16) u8 {
 
     return self.getMemoryPointer(address).*;
 }
+
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
     if (address == 0xFF46) {
         // OAM DMA
@@ -51,19 +137,23 @@ fn getMemoryPointer(self: *Self, address: u16) *u8 {
     // }
     return &self.memory[address];
 }
+
 fn read(self: *Self) u8 {
     const memory_value = self.readMemory(self.pc);
     self.pc += 1;
     return memory_value;
 }
+
 fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
+
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
     if (self.verbose) {
         std.debug.print(fmt, args);
     }
 }
+
 pub fn printFlags(self: *Self) void {
     self.print("{b}\n", .{af.sp.flag.full});
     self.print("c: {b}\n", .{flags.c});
@@ -71,12 +161,14 @@ pub fn printFlags(self: *Self) void {
     self.print("n: {b}\n", .{flags.n});
     self.print("z: {b}\n", .{flags.z});
 }
+
 pub fn logState(self: *Self) !void {
-    if (!self.should_print) {
+    if (!(self.should_print or self.is_doctor_test)) {
         return;
     }
     try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.readMemory(self.pc), self.readMemory(self.pc + 1), self.readMemory(self.pc + 2), self.readMemory(self.pc + 3) });
 }
+
 fn getRegDataPointer(self: *Self, index: u8) *u8 {
     if (index == 6) {
         return self.getMemoryPointer(hl.full);
@@ -84,6 +176,7 @@ fn getRegDataPointer(self: *Self, index: u8) *u8 {
         return reg_8_t[index];
     }
 }
+
 fn getRegDataValue(self: *Self, index: u8) u8 {
     if (index == 6) {
         return self.readMemory(hl.full);
@@ -91,6 +184,7 @@ fn getRegDataValue(self: *Self, index: u8) u8 {
         return reg_8_t[index].*;
     }
 }
+
 fn checkCondition(_: *Self, index: u8) bool {
     return (index == 0 and flags.z == 0) or (index == 1 and flags.z != 0) or (index == 2 and flags.c == 0) or (index == 3 and flags.c != 0);
 }
@@ -900,15 +994,17 @@ fn halt(self: *Self, _: u8) u8 {
 }
 
 fn di(self: *Self, _: u8) u8 {
-    // Disable Interrupts by clearing the IME flag.
     self.print("DI\n", .{});
+    // Disable Interrupts by clearing the IME flag.
+    self.ime = 0;
     return 4;
 }
 
 fn ei(self: *Self, _: u8) u8 {
-    // Enable Interrupts by setting the IME flag.
-    // The flag is only set after the instruction following EI.
     self.print("EI\n", .{});
+    // Enable Interrupts by setting the IME flag.
+    self.ime = 1;
+    // TODO: The flag is only set after the instruction following EI.
     return 4;
 }
 
@@ -986,14 +1082,14 @@ fn cb_prefix(self: *Self, _: u8) u8 {
         return 8;
     } else if (x == 2) {
         self.print("RES {d},{s}\n", .{ y, register });
-        const mask = ~(@as(u8, 1) << y);
-        pointer.* = pointer.* & mask;
+        reset_bit(pointer, y);
         if (z == 6) {
             return 16;
         }
         return 8;
     } else if (x == 3) {
         self.print("SET {d},{s}\n", .{ y, register });
+        set_bit(pointer, y);
         const mask = @as(u8, 1) << y;
         pointer.* = pointer.* | mask;
         if (z == 6) {
@@ -1003,6 +1099,16 @@ fn cb_prefix(self: *Self, _: u8) u8 {
     } else {
         std.debug.panic("Unknown x:{d}, y:{d}, z:{d}", .{ x, y, z });
     }
+}
+
+fn reset_bit(pointer: *u8, shift: u3) void {
+    const mask = ~(@as(u8, 1) << shift);
+    pointer.* = pointer.* & mask;
+}
+
+fn set_bit(pointer: *u8, shift: u3) void {
+    const mask = @as(u8, 1) << shift;
+    pointer.* = pointer.* | mask;
 }
 
 fn stop(self: *Self, _: u8) u8 {
