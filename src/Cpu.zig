@@ -14,6 +14,7 @@ debug: bool,
 verbose: bool,
 should_print: bool,
 std_out: std.fs.File.Writer,
+is_doctor_test: bool,
 
 pub fn cycle(self: *Self) void {
     const op_code = self.read();
@@ -23,33 +24,31 @@ pub fn cycle(self: *Self) void {
 pub fn readMemory(self: *Self, address: u16) u8 {
     // LCD Hardcode
     if (address == 0xFF44) {
-        return 0x90; // 144 = VBlank
+        if (self.is_doctor_test) {
+            return 0x90; // 144 = VBlank
+        } else {
+            return 0;
+        }
     }
     // if (address == 0xFF42) {
     //     return 0;
     // }
     // main_memory[0xFF44] = 0;
     // main_memory[0xFF40] = 0b10100010;
-    if (self.debug) {
-        if (address == 0x134) {
-            // @breakpoint();
-            //         std.debug.print("{X:02} - Read\n", .{self.memory[address]});
-        }
-    }
 
-    return self.memory[address];
+    return self.getMemoryPointer(address).*;
 }
 fn getMemoryPointer(self: *Self, address: u16) *u8 {
-    // if (address == 0xFF50) {
-    //     std.debug.print("Disable Boot ROM\n", .{});
-    //     @breakpoint();
-    // }
-    if (self.debug) {
-        if (address == 0x134) {
-            @breakpoint();
-            //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
-        }
+    if (address == 0xFF46) {
+        // OAM DMA
+        @breakpoint();
     }
+    // if (self.debug) {
+    //     if (address == 0xFF46) {
+    //         @breakpoint();
+    //         //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
+    //     }
+    // }
     return &self.memory[address];
 }
 fn read(self: *Self) u8 {

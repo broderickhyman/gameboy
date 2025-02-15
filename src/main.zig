@@ -19,8 +19,9 @@ pub fn main() !void {
     var verbose = false;
     var debug = false;
     var should_print = false;
-    var file_num: u4 = 7;
+    var file_num: u8 = 7;
     var args_index: u3 = 1;
+    var is_doctor_test = false;
     while (args_index < args.len) : (args_index += 1) {
         const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
@@ -60,6 +61,7 @@ pub fn main() !void {
     } else if (file_num > 11) {
         paths[0] = "../roms/";
     } else {
+        is_doctor_test = true;
         should_print = true;
         paths[0] = "../gb-test-roms/cpu_instrs/individual/";
     }
@@ -83,21 +85,22 @@ pub fn main() !void {
         .should_print = should_print,
         .debug = debug,
         .verbose = verbose,
-        .std_out = std_out
+        .std_out = std_out,
+        .is_doctor_test = is_doctor_test
         };
     // zig fmt: on
 
     if (file_num == 0) {
         fakeCartridge(cpu);
     }
-    if (file_num == 0 or file_num > 11) {
+    if (!is_doctor_test) {
         try runDisplay(cpu, file_num);
     } else {
         try runGameboyDoctor(cpu);
     }
 }
 
-fn runDisplay(cpu: *Cpu, file_num: u4) !void {
+fn runDisplay(cpu: *Cpu, file_num: u8) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -149,7 +152,7 @@ fn runDisplay(cpu: *Cpu, file_num: u4) !void {
         for (0..200) |_| {
             if (run_cpu) {
                 if (cpu.counter % 10000 == 0) {
-                    std.debug.print("Counter: {d}\n", .{cpu.counter});
+                    // std.debug.print("Counter: {d}\n", .{cpu.counter});
                 }
                 try runCpu(cpu);
                 if (file_num == 0 and cpu.memory[0xFF50] > 0) {
@@ -167,19 +170,21 @@ fn runDisplay(cpu: *Cpu, file_num: u4) !void {
         const lcd_on = (lcdc >> 7) == 1;
         if (lcd_on) {
             try renderer.setColorRGB(0, 0, 0);
+            const obj_size: u1 = @truncate(lcdc >> 2);
             const scx: u9 = cpu.memory[0xFF43];
             const scy: u9 = cpu.memory[0xFF42];
-            const width = 160 * scale;
-            const height = 144 * scale;
-            const x_coord: i16 = (((scx + 159) % 256) * scale_i) - width;
-            const y_coord: i16 = (((scy + 143) % 256) * scale_i) - height;
-            const x_offset = x_coord * -1;
-            const y_offset = y_coord * -1;
+            const viewport_width = 160 * scale;
+            const viewport_height = 144 * scale;
+            const viewport_x: i16 = (((scx + 159) % 256) * scale_i) - viewport_width;
+            const viewport_y: i16 = (((scy + 143) % 256) * scale_i) - viewport_height;
+            const background_x_offset = viewport_x * -1;
+            const background_y_offset = viewport_y * -1;
+            // const colors = [_]u8{ 0x00, 0x55, 0xAA, 0xFF };
 
             const address_offset: u16 = 0x9800;
             var y: u6 = 0;
             while (y < 32) : (y += 1) {
-                const tile_y = y_offset + (scale_i * y * 8);
+                const tile_y = background_y_offset + (scale_i * y * 8);
                 var x: u6 = 0;
                 while (x < 32) : (x += 1) {
                     const address = address_offset + (@as(u16, y) * 32) + x;
@@ -187,38 +192,98 @@ fn runDisplay(cpu: *Cpu, file_num: u4) !void {
                     if (tile_map_index <= 0) {
                         continue;
                     }
-                    const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
-                    const tile_x = x_offset + (scale_i * x * 8);
-                    // const temp_rect = SDL.Rectangle{ .x = tile_x, .y = tile_y, .width = 8 * scale, .height = 8 * scale };
-                    // try renderer.drawRect(temp_rect);
-                    var row: u4 = 0;
-                    while (row < 8) : (row += 1) {
-                        const current_byte_address = tile_address + (row * 2);
-                        const chunk_1 = cpu.memory[current_byte_address];
-                        const chunk_2 = cpu.memory[current_byte_address + 1];
-                        var chunk_index: u4 = 0;
-                        while (chunk_index < 8) : (chunk_index += 1) {
-                            const shift: u3 = @truncate(7 - chunk_index);
-                            const bit_1: u1 = @truncate(chunk_1 >> shift);
-                            const bit_2: u1 = @truncate(chunk_2 >> shift);
-                            if (bit_1 == 0 and bit_2 == 0) {
-                                continue;
-                            }
-                            const chunk_x = tile_x + (scale_i * chunk_index);
-                            const chunk_y = tile_y + (scale_i * row);
-                            const rect = SDL.Rectangle{ .x = chunk_x, .y = chunk_y, .width = scale, .height = scale };
-                            try renderer.fillRect(rect);
-                        }
-                    }
+                    // const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
+                    const tile_x = background_x_offset + (scale_i * x * 8);
+                    try renderTile(&renderer, cpu, tile_map_index, scale_i, tile_x, tile_y);
+                    // // const temp_rect = SDL.Rectangle{ .x = tile_x, .y = tile_y, .width = 8 * scale, .height = 8 * scale };
+                    // // try renderer.drawRect(temp_rect);
+                    // var row: u4 = 0;
+                    // while (row < 8) : (row += 1) {
+                    //     const current_byte_address = tile_address + (row * 2);
+                    //     const chunk_1 = cpu.memory[current_byte_address];
+                    //     const chunk_2 = cpu.memory[current_byte_address + 1];
+                    //     var chunk_index: u4 = 0;
+                    //     while (chunk_index < 8) : (chunk_index += 1) {
+                    //         const shift: u3 = @truncate(7 - chunk_index);
+                    //         const bit_1: u1 = @truncate(chunk_1 >> shift);
+                    //         const bit_2: u1 = @truncate(chunk_2 >> shift);
+                    //         if (bit_1 == 0 and bit_2 == 0) {
+                    //             continue;
+                    //         }
+                    //         const color_index: u2 = (@as(u2, bit_2) << 1) | bit_1;
+                    //         const color = colors[color_index];
+                    //         try renderer.setColorRGB(color, color, color);
+                    //         const chunk_x = tile_x + (scale_i * chunk_index);
+                    //         const chunk_y = tile_y + (scale_i * row);
+                    //         const rect = SDL.Rectangle{ .x = chunk_x, .y = chunk_y, .width = scale, .height = scale };
+                    //         try renderer.fillRect(rect);
+                    //     }
+                    // }
                 }
+            }
+            const address_offset_object: u16 = 0xFE00;
+            var object_index: u16 = 0;
+            while (object_index < 40) : (object_index += 1) {
+                const object_base = address_offset_object + (object_index * 4);
+                const y_position = cpu.memory[object_base];
+                if (y_position == 0 or y_position >= 160) {
+                    continue;
+                }
+                const x_position = cpu.memory[object_base + 1];
+                if (x_position == 0 or x_position >= 168) {
+                    continue;
+                }
+                const tile_index = cpu.memory[object_base + 2];
+                // try renderer.setColorRGB(0xFF, 0, 0);
+                // var height: u5 = 8;
+                if (obj_size == 1) {
+                    // height = 16;
+                    @breakpoint();
+                } else {
+                    // @breakpoint();
+                    try renderTile(&renderer, cpu, tile_index, scale_i, scale_i * x_position, scale_i * y_position);
+                }
+                // const rect = SDL.Rectangle{ .x = x_position * scale, .y = y_position * scale, .width = scale * 8, .height = scale * height };
+                // try renderer.fillRect(rect);
             }
         }
 
         renderer.present();
         const end = SDL.getPerformanceCounter();
         const elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
-        if (elapsed <= 16.666) {
-            SDL.delay(@intFromFloat(16.666 - elapsed));
+        const frame_time = 16.74;
+        if (elapsed <= frame_time) {
+            SDL.delay(@intFromFloat(frame_time - elapsed));
+        }
+    }
+}
+
+fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, scale_i: i16, tile_x: i16, tile_y: i16) !void {
+    const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_index) * 16);
+    // const tile_x = background_x_offset + (scale_i * x * 8);
+    // const temp_rect = SDL.Rectangle{ .x = tile_x, .y = tile_y, .width = 8 * scale, .height = 8 * scale };
+    // try renderer.drawRect(temp_rect);
+    const colors = [_]u8{ 0x00, 0x55, 0xAA, 0xFF };
+    var row: u4 = 0;
+    while (row < 8) : (row += 1) {
+        const current_byte_address = tile_address + (row * 2);
+        const chunk_1 = cpu.memory[current_byte_address];
+        const chunk_2 = cpu.memory[current_byte_address + 1];
+        var chunk_index: u4 = 0;
+        while (chunk_index < 8) : (chunk_index += 1) {
+            const shift: u3 = @truncate(7 - chunk_index);
+            const bit_1: u1 = @truncate(chunk_1 >> shift);
+            const bit_2: u1 = @truncate(chunk_2 >> shift);
+            if (bit_1 == 0 and bit_2 == 0) {
+                continue;
+            }
+            const color_index: u2 = (@as(u2, bit_2) << 1) | bit_1;
+            const color = colors[color_index];
+            try renderer.setColorRGB(color, color, color);
+            const chunk_x = tile_x + (scale_i * chunk_index);
+            const chunk_y = tile_y + (scale_i * row);
+            const rect = SDL.Rectangle{ .x = chunk_x, .y = chunk_y, .width = scale_i, .height = scale_i };
+            try renderer.fillRect(rect);
         }
     }
 }
