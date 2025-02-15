@@ -131,7 +131,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8) !void {
     // Startup
     if (file_num != 0) {
         for (0..80000) |_| {
-            try runCpu(cpu);
+            _ = try runCpu(cpu);
         }
     }
 
@@ -154,7 +154,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8) !void {
                 if (cpu.counter % 10000 == 0) {
                     // std.debug.print("Counter: {d}\n", .{cpu.counter});
                 }
-                try runCpu(cpu);
+                _ = try runCpu(cpu);
                 if (file_num == 0 and cpu.memory[0xFF50] > 0) {
                     std.debug.print("Disable Boot ROM\n", .{});
                     // @breakpoint();
@@ -294,12 +294,12 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
-        try runCpu(cpu);
+        _ = try runCpu(cpu);
     }
 }
 
-fn runCpu(cpu: *Cpu) !void {
-    cpu.cycle();
+fn runCpu(cpu: *Cpu) !u8 {
+    const dots = cpu.cycle();
     try cpu.logState();
     const serial_value = cpu.memory[0xFF01];
     if (serial_value > 0) {
@@ -309,6 +309,7 @@ fn runCpu(cpu: *Cpu) !void {
             // break;
         }
     }
+    return dots;
 }
 
 fn fakeCartridge(cpu: *Cpu) void {
