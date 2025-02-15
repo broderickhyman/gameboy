@@ -18,7 +18,7 @@ pub fn main() !void {
     // std.debug.print("${s}\n", .{args});
     var verbose = false;
     var debug = false;
-    var should_print = true;
+    var should_print = false;
     var file_num: u4 = 7;
     var args_index: u3 = 1;
     while (args_index < args.len) : (args_index += 1) {
@@ -29,7 +29,7 @@ pub fn main() !void {
             debug = true;
             should_print = false;
         } else {
-            file_num = try std.fmt.parseInt(u4, args[1], 10);
+            file_num = try std.fmt.parseInt(u4, arg, 10);
         }
     }
     if (verbose) {
@@ -48,6 +48,8 @@ pub fn main() !void {
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // Passed
+        12 => "dmg-acid2.gb",
+        13 => "red.gb",
         else => "",
     };
     var paths: [2][]const u8 = undefined;
@@ -55,7 +57,10 @@ pub fn main() !void {
     if (file_num == 0) {
         paths[0] = "roms/";
         start_pc = 0;
+    } else if (file_num > 11) {
+        paths[0] = "../roms/";
     } else {
+        should_print = true;
         paths[0] = "../gb-test-roms/cpu_instrs/individual/";
     }
     paths[1] = file_name;
@@ -120,12 +125,24 @@ fn runDisplay(cpu: *Cpu, file_num: u4) !void {
     var renderer = try SDL.createRenderer(window, null, .{ .accelerated = true });
     defer renderer.destroy();
 
+    // Startup
+    if (file_num != 0) {
+        for (0..80000) |_| {
+            try runCpu(cpu);
+        }
+    }
+
     var run_cpu = true;
     mainLoop: while (true) {
         const start = SDL.getPerformanceCounter();
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
                 .quit => break :mainLoop,
+                .key_up => |key_event| {
+                    if (key_event.keycode == SDL.Keycode.escape) {
+                        break :mainLoop;
+                    }
+                },
                 else => {},
             }
         }
