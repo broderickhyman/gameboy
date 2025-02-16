@@ -43,7 +43,7 @@ pub fn main() !void {
     const file_name: []const u8 = switch (file_num) {
         0 => "dmg_boot.bin",
         1 => "01-special.gb", // Passed
-        2 => "02-interrupts.gb", // Currently stuck on serial interrupt
+        2 => "02-interrupts.gb", // Passed using display, not cli
         3 => "03-op sp,hl.gb", // Passed
         4 => "04-op r,imm.gb", // Passed
         5 => "05-op rp.gb", // Passed
@@ -66,7 +66,7 @@ pub fn main() !void {
         paths[0] = "../roms/";
     } else {
         is_doctor_test = !display;
-        // should_print = true;
+        should_print = !debug and !display;
         paths[0] = "../gb-test-roms/cpu_instrs/individual/";
     }
     paths[1] = file_name;
@@ -94,7 +94,8 @@ pub fn main() !void {
         .ime = 0,
         .extra_dots = 0,
         .extra_timer_cycles = 0,
-        .div_counter = 0
+        .div_counter = 0,
+        .halted = false
         };
     // zig fmt: on
 
@@ -302,8 +303,10 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
-        if (cpu.debug and cpu.counter > 152005) {
+        if (cpu.debug and cpu.counter > 151000) {
             // cpu.should_print = true;
+        }
+        if (cpu.debug and cpu.counter > 151345) {
             // @breakpoint();
         }
         _ = try runCpu(cpu);
@@ -312,7 +315,9 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
 
 fn runCpu(cpu: *Cpu) !u8 {
     const dots = cpu.cycle();
-    try cpu.logState();
+    if (!cpu.halted) {
+        try cpu.logState();
+    }
     const serial_value = cpu.memory[0xFF01];
     if (serial_value > 0) {
         std.debug.print("{c}", .{serial_value});

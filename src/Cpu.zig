@@ -19,8 +19,12 @@ ime: u1,
 extra_dots: u8,
 extra_timer_cycles: u10,
 div_counter: u10,
+halted: bool,
 
 pub fn cycle(self: *Self) u8 {
+    if (self.halted) {
+        return 4;
+    }
     const op_code = self.read();
     self.counter = @addWithOverflow(self.counter, 1)[0];
     return op_lookup[op_code](self, op_code);
@@ -62,6 +66,7 @@ fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16
     const is_enabled = enabled.* >> shift & 0b1;
     const is_flagged = flag.* >> shift & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
+        self.halted = false;
         self.ime = 0;
         reset_bit(flag, shift);
         call_int(self, address);
@@ -100,6 +105,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
             set_bit(self.getMemoryPointer(0xFF0F), 2);
             // Timer modulo
             timer_pointer.* = self.readMemory(0xFF06);
+            self.halted = false;
         } else {
             timer_pointer.* = timer_result[0];
         }
@@ -994,6 +1000,7 @@ fn ccf(self: *Self, _: u8) u8 {
 fn halt(self: *Self, _: u8) u8 {
     // Low Power Mode
     self.print("HALT\n", .{});
+    self.halted = true;
     return 0;
 }
 
