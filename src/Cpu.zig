@@ -78,7 +78,7 @@ fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16
 pub fn handleTimer(self: *Self, dots: u8) void {
     self.extra_dots += dots;
     const cycles: u8 = self.extra_dots / 4;
-    self.extra_dots -= cycles * 4;
+    self.extra_dots = self.extra_dots % 4;
     self.div_counter += cycles;
     if (self.div_counter > 64) {
         self.div_counter -= 64;
@@ -130,7 +130,7 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     return self.getMemoryPointer(address).*;
 }
 
-fn getMemoryPointer(self: *Self, address: u16) *u8 {
+pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
     if (address == 0xFF46) {
         // OAM DMA
         @breakpoint();

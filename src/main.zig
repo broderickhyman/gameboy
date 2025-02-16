@@ -1,5 +1,6 @@
 const std = @import("std");
 const Cpu = @import("Cpu.zig");
+const Ppu = @import("PPU.zig");
 const SDL = @import("sdl2");
 
 // ./zig-out/bin/gameboy 2 | ../gameboy-doctor/gameboy-doctor - cpu_instrs 2
@@ -145,14 +146,9 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
     defer renderer.destroy();
     try renderer.setScale(new_scale, new_scale);
 
-    const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
+    const ppu = try Ppu.create(gpa_allocator, cpu, &renderer);
 
-    // Startup
-    if (file_num != 0) {
-        for (0..80000) |_| {
-            _ = try runCpu(cpu);
-        }
-    }
+    const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
 
     var run_cpu = true;
     const smoothing = 0.9;
@@ -174,22 +170,28 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
                 else => {},
             }
         }
-        for (0..200) |_| {
-            if (run_cpu) {
+
+        try renderer.setColor(SDL.Color.white);
+        try renderer.clear();
+
+        if (run_cpu) {
+            var dots: u32 = 0;
+            // while (dots < 10000) {
+            while (dots < 70224) {
                 if (cpu.counter % 10000 == 0) {
                     // std.debug.print("Counter: {d}\n", .{cpu.counter});
                 }
-                _ = try runCpu(cpu);
+                const current_dots = try runCpu(cpu);
                 if (file_num == 0 and cpu.memory[0xFF50] > 0) {
                     std.debug.print("Disable Boot ROM\n", .{});
                     // @breakpoint();
                     run_cpu = false;
                 }
+                try ppu.render(current_dots);
+
+                dots += current_dots;
             }
         }
-
-        try renderer.setColor(SDL.Color.white);
-        try renderer.clear();
 
         const lcdc = cpu.memory[0xFF40];
         const lcd_on = (lcdc >> 7) == 1;
@@ -266,7 +268,12 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
 fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, tile_x: i16, tile_y: i16) !void {
     const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_index) * 16);
-    const colors = [_]u8{ 0x00, 0x55, 0xAA, 0xFF };
+    const colors = [_]u8{
+        0xFF,
+        0xAA,
+        0x55,
+        0x00,
+    };
     var row: u4 = 0;
     while (row < 8) : (row += 1) {
         const current_byte_address = tile_address + (row * 2);
