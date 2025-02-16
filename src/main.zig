@@ -34,7 +34,7 @@ pub fn main() !void {
             display = true;
             should_print = false;
         } else {
-            file_num = try std.fmt.parseInt(u4, arg, 10);
+            file_num = try std.fmt.parseInt(u8, arg, 10);
         }
     }
     if (verbose) {
@@ -53,8 +53,13 @@ pub fn main() !void {
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // Passed
-        12 => "dmg-acid2.gb",
-        13 => "red.gb",
+        12 => "../roms/dmg-acid2.gb",
+        13 => "../roms/red.gb",
+        14 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
+        15 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
+        16 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
+        17 => "../gb-test-roms/mem_timing/mem_timing.gb",
+        18 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
         else => "",
     };
     var paths: [2][]const u8 = undefined;
@@ -63,7 +68,7 @@ pub fn main() !void {
         paths[0] = "roms/";
         start_pc = 0;
     } else if (file_num > 11) {
-        paths[0] = "../roms/";
+        paths[0] = "";
     } else {
         is_doctor_test = !display;
         should_print = !debug and !display;
