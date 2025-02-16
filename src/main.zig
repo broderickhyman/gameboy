@@ -2,7 +2,7 @@ const std = @import("std");
 const Cpu = @import("Cpu.zig");
 const SDL = @import("sdl2");
 
-// /home/broderick/code/zig/gameboy/zig-out/bin/gameboy | /home/broderick/code/zig/gameboy/../gameboy-doctor/gameboy-doctor - cpu_instrs 7
+// ./zig-out/bin/gameboy 2 | ../gameboy-doctor/gameboy-doctor - cpu_instrs 2
 
 pub fn main() !void {
     var buffer: [0xFFFF + 1]u8 = undefined;
@@ -43,7 +43,7 @@ pub fn main() !void {
     const file_name: []const u8 = switch (file_num) {
         0 => "dmg_boot.bin",
         1 => "01-special.gb", // Passed
-        2 => "02-interrupts.gb",
+        2 => "02-interrupts.gb", // Currently stuck on serial interrupt
         3 => "03-op sp,hl.gb", // Passed
         4 => "04-op r,imm.gb", // Passed
         5 => "05-op rp.gb", // Passed
@@ -302,8 +302,9 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
-        if (cpu.counter > 151340) {
-            @breakpoint();
+        if (cpu.debug and cpu.counter > 152005) {
+            // cpu.should_print = true;
+            // @breakpoint();
         }
         _ = try runCpu(cpu);
     }

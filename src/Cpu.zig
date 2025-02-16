@@ -22,7 +22,7 @@ div_counter: u10,
 
 pub fn cycle(self: *Self) u8 {
     const op_code = self.read();
-    self.counter += @addWithOverflow(self.counter, 1)[0];
+    self.counter = @addWithOverflow(self.counter, 1)[0];
     return op_lookup[op_code](self, op_code);
 }
 
@@ -92,7 +92,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
             else => 256,
         };
         self.extra_timer_cycles += cycles;
-        const ticks: u10 = self.extra_timer_cycles / clock_select;
+        const ticks: u8 = @truncate(self.extra_timer_cycles / clock_select);
         self.extra_timer_cycles -= ticks * clock_select;
         const timer_result = @addWithOverflow(timer_pointer.*, ticks);
         if (timer_result[1] == 1) {
@@ -101,7 +101,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
             // Timer modulo
             timer_pointer.* = self.readMemory(0xFF06);
         } else {
-            timer_pointer.* = @truncate(timer_result[0]);
+            timer_pointer.* = timer_result[0];
         }
     }
 }
@@ -149,7 +149,7 @@ fn printIndex(self: *Self) void {
 }
 
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.verbose) {
+    if (self.should_print and self.debug) {
         std.debug.print(fmt, args);
     }
 }
@@ -163,7 +163,7 @@ pub fn printFlags(self: *Self) void {
 }
 
 pub fn logState(self: *Self) !void {
-    if (!(self.should_print or self.is_doctor_test)) {
+    if (!self.should_print) {
         return;
     }
     try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{ a_reg.*, af.sp.flag.full, bc.sp.hi, bc.sp.lo, de.sp.hi, de.sp.lo, hl.sp.hi, hl.sp.lo, sp, self.pc, self.readMemory(self.pc), self.readMemory(self.pc + 1), self.readMemory(self.pc + 2), self.readMemory(self.pc + 3) });
@@ -336,8 +336,10 @@ fn ldh_a8_a(self: *Self, _: u8) u8 {
     const displacement = self.read();
     self.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xFF00) + displacement;
-    if (address > 0xFF00 and address < 0xFFFF) {
+    if (address >= 0xFF00 and address <= 0xFFFF) {
         self.getMemoryPointer(address).* = a_reg.*;
+    } else {
+        std.debug.panic("Bad Address", .{});
     }
     return 12;
 }
@@ -346,8 +348,10 @@ fn ldh_a_a8(self: *Self, _: u8) u8 {
     const displacement = self.read();
     self.print("LD A,($FF00+${X})\n", .{displacement});
     const address: u16 = @as(u16, 0xFF00) + displacement;
-    if (address > 0xFF00 and address < 0xFFFF) {
+    if (address >= 0xFF00 and address <= 0xFFFF) {
         a_reg.* = self.readMemory(address);
+    } else {
+        std.debug.panic("Bad Address", .{});
     }
     return 12;
 }
