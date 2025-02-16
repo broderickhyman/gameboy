@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) void {
     });
 
     sdk.link(exe, .dynamic, sdl.Library.SDL2); // link SDL2 as a shared library
+    sdk.link(exe, .dynamic, sdl.Library.SDL2_ttf); // link SDL2 as a shared library
 
     // Add "sdl2" package that exposes the SDL2 api (like SDL_Init or SDL_CreateWindow)
     exe.root_module.addImport("sdl2", sdk.getWrapperModule());
