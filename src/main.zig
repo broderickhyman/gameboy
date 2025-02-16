@@ -86,25 +86,13 @@ pub fn main() !void {
     @memset(main_memory, 0);
     _ = try file.readAll(main_memory);
 
-    const cpu = try gpa_allocator.create(Cpu);
+    const cpu = try Cpu.create(&gpa_allocator, main_memory, start_pc, std_out);
     defer gpa_allocator.destroy(cpu);
-    // zig fmt: off
-    cpu.* = .{
-        .memory = main_memory,
-        .pc = start_pc,
-        .counter = 1,
-        .should_print = should_print,
-        .debug = debug,
-        .verbose = verbose,
-        .std_out = std_out,
-        .is_doctor_test = is_doctor_test,
-        .ime = 0,
-        .extra_dots = 0,
-        .extra_timer_cycles = 0,
-        .div_counter = 0,
-        .halted = false
-        };
-    // zig fmt: on
+
+    cpu.should_print = should_print;
+    cpu.debug = debug;
+    cpu.verbose = verbose;
+    cpu.is_doctor_test = is_doctor_test;
 
     if (file_num == 0) {
         fakeCartridge(cpu);
@@ -147,6 +135,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
     try renderer.setScale(new_scale, new_scale);
 
     const ppu = try Ppu.create(gpa_allocator, cpu, &renderer);
+    defer gpa_allocator.destroy(ppu);
 
     const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
 
@@ -176,7 +165,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
         if (run_cpu) {
             var dots: u32 = 0;
-            // while (dots < 10000) {
+            // while (dots < 50000) {
             while (dots < 70224) {
                 if (cpu.counter % 10000 == 0) {
                     // std.debug.print("Counter: {d}\n", .{cpu.counter});

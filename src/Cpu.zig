@@ -21,6 +21,29 @@ extra_timer_cycles: u10,
 div_counter: u10,
 halted: bool,
 
+pub fn create(allocator: *const std.mem.Allocator, main_memory: []u8, start_pc: u16, std_out: std.fs.File.Writer) !*Self {
+    const cpu = try allocator.create(Self);
+
+    // zig fmt: off
+    cpu.* = .{
+        .memory = main_memory,
+        .pc = start_pc,
+        .counter = 1,
+        .should_print = false,
+        .debug = false,
+        .verbose = false,
+        .std_out = std_out,
+        .is_doctor_test = false,
+        .ime = 0,
+        .extra_dots = 0,
+        .extra_timer_cycles = 0,
+        .div_counter = 0,
+        .halted = false
+        };
+    // zig fmt: on
+    return cpu;
+}
+
 pub fn cycle(self: *Self) u8 {
     if (self.halted) {
         return 4;
