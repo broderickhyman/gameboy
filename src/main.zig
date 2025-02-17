@@ -257,12 +257,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
 fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, tile_x: i16, tile_y: i16) !void {
     const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_index) * 16);
-    const colors = [_]u8{
-        0xFF,
-        0xAA,
-        0x55,
-        0x00,
-    };
+    const colors = [_]u8{ 0xFF, 0xAA, 0x55, 0x00 };
     var row: u4 = 0;
     while (row < 8) : (row += 1) {
         const current_byte_address = tile_address + (row * 2);
