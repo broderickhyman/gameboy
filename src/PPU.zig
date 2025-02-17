@@ -132,30 +132,12 @@ fn renderLine(self: *Self) !void {
                 tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + tile_map_index_signed)));
             }
             const inner_y = fetcher_y % 8;
-            try self.renderTile(tile_address, inner_y, current_x, current_line);
-
-            // const tile_row_address = tile_address + (tile_y * 2);
-            // const tile_low = self.cpu.memory[tile_row_address];
-            // const tile_high = self.cpu.memory[tile_row_address + 1];
-            // var byte_index: u4 = 0;
-            // while (byte_index < 8) : (byte_index += 1) {
-            //     const shift: u3 = @truncate(7 - byte_index);
-            //     const bit_low: u1 = @truncate(tile_low >> shift);
-            //     const bit_high: u1 = @truncate(tile_high >> shift);
-            //     if (bit_low == 0 and bit_high == 0) {
-            //         continue;
-            //     }
-            //     const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-            //     const color = self.getColor(color_index);
-            //     try self.renderer.setColorRGB(color, color, color);
-            //     try self.renderer.drawPoint(current_x + byte_index, current_line);
-            // }
+            try self.renderTile(tile_address, inner_y, current_x, current_line, false);
         }
     }
 
     const obj_enable = self.getLcdcValue(1);
     if (obj_enable) {
-        // const obj_double_size = self.getLcdcValue(2);
         var object_height: u8 = undefined;
         if (self.getLcdcValue(2)) {
             object_height = 16;
@@ -171,7 +153,6 @@ fn renderLine(self: *Self) !void {
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
                 const obj_x = self.cpu.memory[oam_address + 1];
-                // const inner_y = obj_bottom - (current_line + 16);
                 const inner_y = (current_line + 16) - obj_y;
                 const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
                 var tile_address: u16 = 0x8000;
@@ -183,14 +164,13 @@ fn renderLine(self: *Self) !void {
                         tile_address += 1;
                     }
                 }
-                try self.renderTile(tile_address, inner_y, obj_x, obj_y + inner_y);
+                try self.renderTile(tile_address, inner_y, obj_x, current_line, true);
             }
         }
-        // std.debug.print("Line: {d} Found: {d}\n", .{ current_line, found });
     }
 }
 
-fn renderTile(self: *Self, tile_address: u16, inner_y: u8, x: u8, y: u8) !void {
+fn renderTile(self: *Self, tile_address: u16, inner_y: u8, x: u8, y: u8, is_obj: bool) !void {
     const tile_row_address = tile_address + (inner_y * 2);
     const tile_low = self.cpu.memory[tile_row_address];
     const tile_high = self.cpu.memory[tile_row_address + 1];
@@ -199,10 +179,10 @@ fn renderTile(self: *Self, tile_address: u16, inner_y: u8, x: u8, y: u8) !void {
         const shift: u3 = @truncate(7 - byte_index);
         const bit_low: u1 = @truncate(tile_low >> shift);
         const bit_high: u1 = @truncate(tile_high >> shift);
-        if (bit_low == 0 and bit_high == 0) {
-            continue;
-        }
         const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
+        if (is_obj and color_index == 0) {
+            return;
+        }
         const color = self.getColor(color_index);
         try self.renderer.setColorRGB(color, color, color);
         try self.renderer.drawPoint(x + byte_index, y);
