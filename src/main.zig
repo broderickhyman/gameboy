@@ -182,57 +182,57 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
             }
         }
 
-        const lcdc = cpu.memory[0xFF40];
-        const lcd_on = (lcdc >> 7) == 1;
-        if (lcd_on) {
-            const obj_size: u1 = @truncate(lcdc >> 2);
-            const scx: u9 = cpu.memory[0xFF43];
-            const scy: u9 = cpu.memory[0xFF42];
-            const viewport_width: i16 = 160;
-            const viewport_height: i16 = 144;
-            const viewport_x: i16 = ((scx + 159) % 256) - viewport_width;
-            const viewport_y: i16 = ((scy + 143) % 256) - viewport_height;
-            const background_x_offset = viewport_x * -1;
-            const background_y_offset = viewport_y * -1;
+        // const lcdc = cpu.memory[0xFF40];
+        // const lcd_on = (lcdc >> 7) == 1;
+        // if (lcd_on) {
+        //     const obj_size: u1 = @truncate(lcdc >> 2);
+        //     const scx: u9 = cpu.memory[0xFF43];
+        //     const scy: u9 = cpu.memory[0xFF42];
+        //     const viewport_width: i16 = 160;
+        //     const viewport_height: i16 = 144;
+        //     const viewport_x: i16 = ((scx + 159) % 256) - viewport_width;
+        //     const viewport_y: i16 = ((scy + 143) % 256) - viewport_height;
+        //     const background_x_offset = viewport_x * -1;
+        //     const background_y_offset = viewport_y * -1;
 
-            const address_offset: u16 = 0x9800;
-            var y: u6 = 0;
-            while (y < 32) : (y += 1) {
-                const tile_y = background_y_offset + (@as(i16, y) * 8);
-                var x: u6 = 0;
-                while (x < 32) : (x += 1) {
-                    const address: u16 = address_offset + (@as(u16, y) * 32) + x;
-                    const tile_map_index = cpu.memory[address];
-                    if (tile_map_index <= 0) {
-                        continue;
-                    }
-                    const tile_x: i16 = background_x_offset + (@as(i16, x) * 8);
-                    try renderTile(&renderer, cpu, tile_map_index, tile_x, tile_y);
-                }
-            }
-            const address_offset_object: u16 = 0xFE00;
-            var object_index: u16 = 0;
-            while (object_index < 40) : (object_index += 1) {
-                const object_base = address_offset_object + (object_index * 4);
-                const y_position = cpu.memory[object_base];
-                if (y_position == 0 or y_position >= 160) {
-                    continue;
-                }
-                const x_position = cpu.memory[object_base + 1];
-                if (x_position == 0 or x_position >= 168) {
-                    continue;
-                }
-                const tile_index = cpu.memory[object_base + 2];
-                // var height: u5 = 8;
-                if (obj_size == 1) {
-                    // height = 16;
-                    @breakpoint();
-                } else {
-                    // @breakpoint();
-                    try renderTile(&renderer, cpu, tile_index, x_position, y_position);
-                }
-            }
-        }
+        //     const address_offset: u16 = 0x9800;
+        //     var y: u6 = 0;
+        //     while (y < 32) : (y += 1) {
+        //         const tile_y = background_y_offset + (@as(i16, y) * 8);
+        //         var x: u6 = 0;
+        //         while (x < 32) : (x += 1) {
+        //             const address: u16 = address_offset + (@as(u16, y) * 32) + x;
+        //             const tile_map_index = cpu.memory[address];
+        //             if (tile_map_index <= 0) {
+        //                 continue;
+        //             }
+        //             const tile_x: i16 = background_x_offset + (@as(i16, x) * 8);
+        //             try renderTile(&renderer, cpu, tile_map_index, tile_x, tile_y);
+        //         }
+        //     }
+        //     const address_offset_object: u16 = 0xFE00;
+        //     var object_index: u16 = 0;
+        //     while (object_index < 40) : (object_index += 1) {
+        //         const object_base = address_offset_object + (object_index * 4);
+        //         const y_position = cpu.memory[object_base];
+        //         if (y_position == 0 or y_position >= 160) {
+        //             continue;
+        //         }
+        //         const x_position = cpu.memory[object_base + 1];
+        //         if (x_position == 0 or x_position >= 168) {
+        //             continue;
+        //         }
+        //         const tile_index = cpu.memory[object_base + 2];
+        //         // var height: u5 = 8;
+        //         if (obj_size == 1) {
+        //             // height = 16;
+        //             @breakpoint();
+        //         } else {
+        //             // @breakpoint();
+        //             try renderTile(&renderer, cpu, tile_index, x_position, y_position);
+        //         }
+        //     }
+        // }
 
         var end = SDL.getPerformanceCounter();
         var elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
