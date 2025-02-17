@@ -133,6 +133,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
     var renderer = try SDL.createRenderer(window, null, .{ .accelerated = true });
     defer renderer.destroy();
     try renderer.setScale(new_scale, new_scale);
+    try renderer.setDrawBlendMode(SDL.BlendMode.none);
 
     const ppu = try Ppu.create(gpa_allocator, cpu, &renderer);
     defer gpa_allocator.destroy(ppu);
@@ -160,7 +161,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
             }
         }
 
-        try renderer.setColor(SDL.Color.white);
+        try renderer.setColor(SDL.Color.green);
         try renderer.clear();
 
         if (run_cpu) {
