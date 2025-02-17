@@ -151,8 +151,26 @@ fn renderLine(self: *Self) !void {
 
     const obj_enable = self.getLcdcValue(1);
     if (obj_enable) {
-        const obj_double_size = self.getLcdcValue(2);
-        _ = obj_double_size;
+        // const obj_double_size = self.getLcdcValue(2);
+        var object_height: u8 = undefined;
+        if (self.getLcdcValue(2)) {
+            object_height = 16;
+        } else {
+            object_height = 8;
+        }
+        var object_index: u8 = 0;
+        var found: u8 = 0;
+        while (object_index < 40 and found < 10) : (object_index += 1) {
+            const oam_address: u16 = @as(u16, 0xFE00) + object_index * 4;
+            const obj_y = self.cpu.memory[oam_address];
+            const obj_bottom = obj_y + object_height;
+            if (obj_bottom > current_line + 16 and obj_y < 160) {
+                found += 1;
+                // const obj_x = self.cpu.memory[oam_address + 1];
+                // const obj_index = self.cpu.memory[oam_address + 2];
+                // const
+            }
+        }
     }
 }
 
