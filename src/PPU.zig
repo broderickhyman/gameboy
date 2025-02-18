@@ -12,7 +12,9 @@ lyc_ptr: *u8,
 stat_ptr: *u8,
 current_mode: u3,
 lcdc_ptr: *u8,
-color_ptr: *u8,
+bg_color_ptr: *u8,
+obj0_color_ptr: *u8,
+obj1_color_ptr: *u8,
 
 pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Renderer) !*Self {
     const ppu = try allocator.create(Self);
@@ -20,13 +22,17 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
         .cpu = cpu,
         .renderer = renderer,
         .line_progress = 0,
+        .stat_ptr = cpu.getMemoryPointer(0xFF41),
         .ly_ptr = cpu.getMemoryPointer(0xFF44),
         .lyc_ptr = cpu.getMemoryPointer(0xFF45),
-        .stat_ptr = cpu.getMemoryPointer(0xFF41),
         .current_mode = 2,
         .lcdc_ptr = cpu.getMemoryPointer(0xFF40),
-        .color_ptr = cpu.getMemoryPointer(0xFF47),
+        .bg_color_ptr = cpu.getMemoryPointer(0xFF47),
+        .obj0_color_ptr = cpu.getMemoryPointer(0xFF48),
+        .obj1_color_ptr = cpu.getMemoryPointer(0xFF49),
     };
+    ppu.stat_ptr.* = 0x85;
+    ppu.lcdc_ptr.* = 0x91;
     return ppu;
 }
 
@@ -38,12 +44,6 @@ pub fn render(self: *Self, dots: u32) !void {
     while (current_dots > 0) {
         self.line_progress += 1;
         current_dots -= 1;
-        if (self.ly_ptr.* == self.lyc_ptr.*) {
-            utils.setBit(self.stat_ptr, 2);
-            self.requestInterruptIfSelected(6);
-        } else {
-            utils.resetBit(self.stat_ptr, 2);
-        }
 
         if (self.current_mode == 2 and self.line_progress > mode_2_length) {
             self.setPpuMode(3);
@@ -56,8 +56,7 @@ pub fn render(self: *Self, dots: u32) !void {
             continue;
         }
         if (self.current_mode == 0 and self.line_progress > 456) {
-            self.ly_ptr.* += 1;
-            self.line_progress = 1;
+            self.newLine();
             if (self.ly_ptr.* <= 143) {
                 self.setPpuMode(2);
                 self.requestInterruptIfSelected(5);
@@ -68,11 +67,11 @@ pub fn render(self: *Self, dots: u32) !void {
             continue;
         }
         if (self.current_mode == 1 and self.line_progress > 456) {
-            self.ly_ptr.* += 1;
-            self.line_progress = 1;
+            self.newLine();
             if (self.ly_ptr.* > 153) {
                 self.setPpuMode(2);
                 self.requestInterruptIfSelected(5);
+                self.cpu.requestInterrupt(0);
                 self.ly_ptr.* = 0;
             }
             continue;
@@ -80,17 +79,28 @@ pub fn render(self: *Self, dots: u32) !void {
     }
 }
 
+fn newLine(self: *Self) void {
+    self.ly_ptr.* += 1;
+    self.line_progress = 1;
+    if (self.ly_ptr.* == self.lyc_ptr.*) {
+        utils.setBit(self.stat_ptr, 2);
+        self.requestInterruptIfSelected(6);
+    } else {
+        utils.resetBit(self.stat_ptr, 2);
+    }
+}
+
 fn requestInterruptIfSelected(self: *Self, select_num: u3) void {
-    const selected = self.stat_ptr.* >> select_num & 0b1;
-    if (selected == 1) {
-        self.cpu.requestInterrupt(0);
+    const selected = (self.stat_ptr.* >> select_num) & 0b1 == 1;
+    if (selected) {
+        self.cpu.requestInterrupt(1);
     }
 }
 
 fn setPpuMode(self: *Self, mode: u2) void {
     self.current_mode = mode;
     const mask = ~(@as(u8, 0b11));
-    self.stat_ptr.* = (self.stat_ptr.* & mask) & mode;
+    self.stat_ptr.* = (self.stat_ptr.* & mask) | mode;
 }
 
 fn renderLine(self: *Self) !void {
@@ -98,43 +108,57 @@ fn renderLine(self: *Self) !void {
     if (!lcd_on) {
         return;
     }
-    // const colors = [_]u8{ 0xFF, 0xAA, 0x55, 0x00 };
     const current_line: u8 = self.ly_ptr.*;
 
     const bg_window_enabled = self.getLcdcValue(0);
-    if (bg_window_enabled) {
-        const scx = self.cpu.memory[0xFF43];
-        const scy = self.cpu.memory[0xFF42];
-        const fetcher_y = (current_line + scy) & 255;
-        const tile_map_y = fetcher_y / 8;
-        // const window_enabled = self.getLcdcValue(5);
-        // if (window_enabled) {
-        //     var window_tile_address: u16 = 0x9800;
-        //     if (self.getLcdcValue(6)) {
-        //         window_tile_address = 0x9C00;
-        //     }
-        // }
-        var background_tile_address: u16 = 0x9800;
-        if (self.getLcdcValue(3)) {
-            background_tile_address = 0x9C00;
+    // if (bg_window_enabled) {
+    const scx = self.cpu.memory[0xFF43];
+    const scy = self.cpu.memory[0xFF42];
+    const fetcher_y = (current_line + scy) & 255;
+    const tile_map_y = fetcher_y / 8;
+    // const window_enabled = self.getLcdcValue(5);
+    // if (window_enabled) {
+    //     var window_tile_address: u16 = 0x9800;
+    //     if (self.getLcdcValue(6)) {
+    //         window_tile_address = 0x9C00;
+    //     }
+    // }
+    var background_tile_address: u16 = 0x9800;
+    if (self.getLcdcValue(3)) {
+        background_tile_address = 0x9C00;
+    }
+    const address_mode_8000 = self.getLcdcValue(4);
+    var current_x: u8 = 0;
+    while (current_x < 160) : (current_x += 8) {
+        const fetcher_x = ((scx / 8) + (current_x / 8)) & 31;
+        const tile_index_address: u16 = background_tile_address + (@as(u16, tile_map_y) * 32) + fetcher_x;
+        const tile_map_index = self.cpu.memory[tile_index_address];
+        var tile_address: u16 = undefined;
+        if (address_mode_8000) {
+            tile_address = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
+        } else {
+            const tile_map_index_signed: i8 = @bitCast(tile_map_index);
+            tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + tile_map_index_signed)));
         }
-        const address_mode_8000 = self.getLcdcValue(4);
-        var current_x: u8 = 0;
-        while (current_x < 160) : (current_x += 8) {
-            const fetcher_x = ((scx / 8) + (current_x / 8)) & 31;
-            const tile_index_address: u16 = background_tile_address + (@as(u16, tile_map_y) * 32) + fetcher_x;
-            const tile_map_index = self.cpu.memory[tile_index_address];
-            var tile_address: u16 = undefined;
-            if (address_mode_8000) {
-                tile_address = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
-            } else {
-                const tile_map_index_signed: i8 = @bitCast(tile_map_index);
-                tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + tile_map_index_signed)));
+        const inner_y = fetcher_y % 8;
+        const tile_row_address = tile_address + (inner_y * 2);
+        const tile_low = self.cpu.memory[tile_row_address];
+        const tile_high = self.cpu.memory[tile_row_address + 1];
+        var byte_index: u4 = 0;
+        while (byte_index < 8) : (byte_index += 1) {
+            const shift: u3 = @truncate(7 - byte_index);
+            const bit_low: u1 = @truncate(tile_low >> shift);
+            const bit_high: u1 = @truncate(tile_high >> shift);
+            var color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
+            if (!bg_window_enabled) {
+                color_index = 0;
             }
-            const inner_y = fetcher_y % 8;
-            try self.renderTile(tile_address, inner_y, current_x, current_line, false);
+            const color = getColor(self.bg_color_ptr, color_index);
+            try self.renderer.setColorRGB(color, color, color);
+            try self.renderer.drawPoint(current_x + byte_index, current_line);
         }
     }
+    // }
 
     const obj_enable = self.getLcdcValue(1);
     if (obj_enable) {
@@ -152,8 +176,17 @@ fn renderLine(self: *Self) !void {
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
+                const obj_attributes = self.cpu.memory[oam_address + 3];
+                const priority = (obj_attributes >> 7) & 1 == 1;
+                if (priority) {
+                    continue;
+                }
                 const obj_x = self.cpu.memory[oam_address + 1];
-                const inner_y = (current_line + 16) - obj_y;
+                var inner_y = (current_line + 16) - obj_y;
+                const y_flip = (obj_attributes >> 6) & 1 == 1;
+                if (y_flip) {
+                    inner_y = object_height - inner_y;
+                }
                 const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
                 var tile_address: u16 = 0x8000;
                 if (object_height == 8) {
@@ -164,34 +197,42 @@ fn renderLine(self: *Self) !void {
                         tile_address += 1;
                     }
                 }
-                try self.renderTile(tile_address, inner_y, obj_x, current_line, true);
+                const x_flip = (obj_attributes >> 5) & 1 == 1;
+                var palette_ptr: *u8 = undefined;
+                if ((obj_attributes >> 4) & 1 == 1) {
+                    palette_ptr = self.obj1_color_ptr;
+                } else {
+                    palette_ptr = self.obj0_color_ptr;
+                }
+                const tile_row_address = tile_address + (inner_y * 2);
+                const tile_low = self.cpu.memory[tile_row_address];
+                const tile_high = self.cpu.memory[tile_row_address + 1];
+                var byte_index: u4 = 0;
+                while (byte_index < 8) : (byte_index += 1) {
+                    var shift: u3 = undefined;
+                    if (x_flip) {
+                        shift = @truncate(byte_index);
+                    } else {
+                        shift = @truncate(7 - byte_index);
+                    }
+                    const bit_low: u1 = @truncate(tile_low >> shift);
+                    const bit_high: u1 = @truncate(tile_high >> shift);
+                    const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
+                    if (color_index == 0) {
+                        continue;
+                    }
+                    const color = getColor(palette_ptr, color_index);
+                    try self.renderer.setColorRGB(color, color, color);
+                    try self.renderer.drawPoint(obj_x + byte_index, current_line);
+                }
             }
         }
     }
 }
 
-fn renderTile(self: *Self, tile_address: u16, inner_y: u8, x: u8, y: u8, is_obj: bool) !void {
-    const tile_row_address = tile_address + (inner_y * 2);
-    const tile_low = self.cpu.memory[tile_row_address];
-    const tile_high = self.cpu.memory[tile_row_address + 1];
-    var byte_index: u4 = 0;
-    while (byte_index < 8) : (byte_index += 1) {
-        const shift: u3 = @truncate(7 - byte_index);
-        const bit_low: u1 = @truncate(tile_low >> shift);
-        const bit_high: u1 = @truncate(tile_high >> shift);
-        const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-        if (is_obj and color_index == 0) {
-            return;
-        }
-        const color = self.getColor(color_index);
-        try self.renderer.setColorRGB(color, color, color);
-        try self.renderer.drawPoint(x + byte_index, y);
-    }
-}
-
-fn getColor(self: *Self, index: u3) u8 {
+fn getColor(pointer: *u8, index: u3) u8 {
     const colors = [_]u8{ 0xFF, 0xAA, 0x55, 0x00 };
-    return colors[self.color_ptr.* >> (index * 2) & 0b11];
+    return colors[(pointer.* >> (index * 2)) & 0b11];
 }
 
 fn getLcdcValue(self: *Self, bit_num: u3) bool {

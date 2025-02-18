@@ -85,8 +85,8 @@ pub fn handleInterrupts(self: *Self) u8 {
 }
 
 fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16) bool {
-    const is_enabled = enabled.* >> shift & 0b1;
-    const is_flagged = flag.* >> shift & 0b1;
+    const is_enabled = (enabled.* >> shift) & 0b1;
+    const is_flagged = (flag.* >> shift) & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
         self.halted = false;
         self.ime = 0;
@@ -113,7 +113,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
         div_pointer.* = div_result[0];
     }
     const tac = self.readMemory(0xFF07);
-    const enabled = tac >> 2 & 0b1;
+    const enabled = (tac >> 2) & 0b1;
     if (enabled == 1) {
         const timer_pointer = self.getMemoryPointer(0xFF05);
         const clock_select: u10 = switch (tac & 0x11) {
@@ -143,8 +143,6 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     if (address == 0xFF44) {
         if (self.is_doctor_test) {
             return 0x90; // 144 = VBlank
-        } else {
-            return 0;
         }
     }
     // if (address == 0xFF42) {
@@ -161,11 +159,9 @@ pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
         // OAM DMA
         @breakpoint();
     }
-    // if (self.debug) {
-    //     if (address == 0xFF46) {
-    //         @breakpoint();
-    //         //         std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
-    //     }
+    // if (address == 0xFF45) {
+    //     @breakpoint();
+    //     std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
     // }
     return &self.memory[address];
 }
