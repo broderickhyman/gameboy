@@ -15,6 +15,8 @@ lcdc_ptr: *u8,
 bg_color_ptr: *u8,
 obj0_color_ptr: *u8,
 obj1_color_ptr: *u8,
+window_triggered: bool,
+window_index: u8,
 
 pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Renderer) !*Self {
     const ppu = try allocator.create(Self);
@@ -30,6 +32,8 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
         .bg_color_ptr = cpu.getMemoryPointer(0xFF47),
         .obj0_color_ptr = cpu.getMemoryPointer(0xFF48),
         .obj1_color_ptr = cpu.getMemoryPointer(0xFF49),
+        .window_triggered = false,
+        .window_index = 0,
     };
     ppu.stat_ptr.* = 0x85;
     ppu.lcdc_ptr.* = 0x91;
@@ -73,6 +77,8 @@ pub fn render(self: *Self, dots: u32) !void {
                 self.requestInterruptIfSelected(5);
                 self.cpu.requestInterrupt(0);
                 self.ly_ptr.* = 0;
+                self.window_index = 0;
+                self.window_triggered = false;
             }
             continue;
         }
@@ -81,6 +87,10 @@ pub fn render(self: *Self, dots: u32) !void {
 
 fn newLine(self: *Self) void {
     self.ly_ptr.* += 1;
+    const wy = self.cpu.memory[0xFF4A];
+    if (self.ly_ptr.* == wy) {
+        self.window_triggered = true;
+    }
     self.line_progress = 1;
     if (self.ly_ptr.* == self.lyc_ptr.*) {
         utils.setBit(self.stat_ptr, 2);
@@ -112,25 +122,36 @@ fn renderLine(self: *Self) !void {
 
     const bg_window_enabled = self.getLcdcValue(0);
     // if (bg_window_enabled) {
-    const scx = self.cpu.memory[0xFF43];
     const scy = self.cpu.memory[0xFF42];
+    const scx = self.cpu.memory[0xFF43];
+    // const wy = self.cpu.memory[0xFF4A];
+    const wx = self.cpu.memory[0xFF4B];
     const fetcher_y = (current_line + scy) & 255;
-    const tile_map_y = fetcher_y / 8;
-    // const window_enabled = self.getLcdcValue(5);
-    // if (window_enabled) {
-    //     var window_tile_address: u16 = 0x9800;
-    //     if (self.getLcdcValue(6)) {
-    //         window_tile_address = 0x9C00;
-    //     }
-    // }
-    var background_tile_address: u16 = 0x9800;
-    if (self.getLcdcValue(3)) {
-        background_tile_address = 0x9C00;
-    }
+    const window_enabled = self.getLcdcValue(5);
+    var window_rendered = false;
     const address_mode_8000 = self.getLcdcValue(4);
     var current_x: u8 = 0;
     while (current_x < 160) : (current_x += 8) {
-        const fetcher_x = ((scx / 8) + (current_x / 8)) & 31;
+        // var adjusted_x = current_x;
+        var adjusted_y = fetcher_y;
+        var fetcher_x: u8 = undefined;
+        var background_tile_address: u16 = 0x9800;
+        if (self.window_triggered and window_enabled and wx <= current_x + 7) {
+            window_rendered = true;
+            // adjusted_x = wx - 7 - current_x;
+            fetcher_x = ((current_x - (wx - 7)) / 8) & 31;
+            adjusted_y = self.window_index;
+            if (self.getLcdcValue(6)) {
+                background_tile_address = 0x9C00;
+            }
+        } else {
+            fetcher_x = ((scx / 8) + (current_x / 8)) & 31;
+            if (self.getLcdcValue(3)) {
+                background_tile_address = 0x9C00;
+            }
+        }
+
+        const tile_map_y = adjusted_y / 8;
         const tile_index_address: u16 = background_tile_address + (@as(u16, tile_map_y) * 32) + fetcher_x;
         const tile_map_index = self.cpu.memory[tile_index_address];
         var tile_address: u16 = undefined;
@@ -140,7 +161,7 @@ fn renderLine(self: *Self) !void {
             const tile_map_index_signed: i8 = @bitCast(tile_map_index);
             tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + tile_map_index_signed)));
         }
-        const inner_y = fetcher_y % 8;
+        const inner_y = adjusted_y % 8;
         const tile_row_address = tile_address + (inner_y * 2);
         const tile_low = self.cpu.memory[tile_row_address];
         const tile_high = self.cpu.memory[tile_row_address + 1];
@@ -157,6 +178,9 @@ fn renderLine(self: *Self) !void {
             try self.renderer.setColorRGB(color, color, color);
             try self.renderer.drawPoint(current_x + byte_index, current_line);
         }
+    }
+    if (window_rendered) {
+        self.window_index += 1;
     }
     // }
 
@@ -184,18 +208,20 @@ fn renderLine(self: *Self) !void {
                 const obj_x = self.cpu.memory[oam_address + 1];
                 var inner_y = (current_line + 16) - obj_y;
                 const y_flip = (obj_attributes >> 6) & 1 == 1;
-                if (y_flip) {
-                    inner_y = object_height - inner_y;
-                }
                 const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
                 var tile_address: u16 = 0x8000;
                 if (object_height == 8) {
                     tile_address += obj_tile_index * 16;
                 } else {
-                    tile_address += obj_tile_index * 16 * 2;
+                    // tile_address += obj_tile_index * 16 * 2;
                     if (inner_y >= 8) {
-                        tile_address += 1;
+                        tile_address += (obj_tile_index & 0xFE) * 16;
+                    } else {
+                        tile_address += (obj_tile_index | 0x01) * 16;
                     }
+                }
+                if (y_flip) {
+                    inner_y = object_height - inner_y;
                 }
                 const x_flip = (obj_attributes >> 5) & 1 == 1;
                 var palette_ptr: *u8 = undefined;
