@@ -198,7 +198,7 @@ fn renderLine(self: *Self) !void {
         }
         var object_index: u8 = 0;
         var found: u8 = 0;
-        while (object_index < 40 and found <= 10) : (object_index += 1) {
+        while (object_index < 40 and found <= 9) : (object_index += 1) {
             const oam_address: u16 = @as(u16, 0xFE00) + object_index * 4;
             const obj_y = self.cpu.memory[oam_address];
             const obj_bottom = obj_y + object_height;
