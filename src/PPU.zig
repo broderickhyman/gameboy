@@ -260,7 +260,7 @@ fn renderLine(self: *Self) !void {
                     }
                     const color = getColor(palette_ptr, color_index);
                     try self.renderer.setColorRGB(color, color, color);
-                    try self.renderer.drawPoint(obj_x + byte_index, current_line);
+                    try self.renderer.drawPoint(obj_x - 8 + byte_index, current_line);
                 }
             }
         }
