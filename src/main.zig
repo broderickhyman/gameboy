@@ -16,7 +16,6 @@ pub fn main() !void {
 
     const args = try std.process.argsAlloc(gpa_allocator);
     defer std.process.argsFree(gpa_allocator, args);
-    // std.debug.print("${s}\n", .{args});
     var verbose = false;
     var debug = false;
     var should_print = false;
@@ -115,8 +114,6 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
     defer SDL.ttf.quit();
 
     const new_scale: u16 = 5;
-    // const screen_width = 256 * scale;
-    // const screen_height = 256 * scale;
     const screen_width = 160 * new_scale;
     const screen_height = 144 * new_scale;
 
@@ -166,11 +163,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
         if (run_cpu) {
             var dots: u32 = 0;
-            // while (dots < 50000) {
             while (dots < 70224) {
-                if (cpu.counter % 10000 == 0) {
-                    // std.debug.print("Counter: {d}\n", .{cpu.counter});
-                }
                 const current_dots = try runCpu(cpu);
                 if (file_num == 0 and cpu.memory[0xFF50] > 0) {
                     std.debug.print("Disable Boot ROM\n", .{});
@@ -182,58 +175,6 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
                 dots += current_dots;
             }
         }
-
-        // const lcdc = cpu.memory[0xFF40];
-        // const lcd_on = (lcdc >> 7) == 1;
-        // if (lcd_on) {
-        //     const obj_size: u1 = @truncate(lcdc >> 2);
-        //     const scx: u9 = cpu.memory[0xFF43];
-        //     const scy: u9 = cpu.memory[0xFF42];
-        //     const viewport_width: i16 = 160;
-        //     const viewport_height: i16 = 144;
-        //     const viewport_x: i16 = ((scx + 159) % 256) - viewport_width;
-        //     const viewport_y: i16 = ((scy + 143) % 256) - viewport_height;
-        //     const background_x_offset = viewport_x * -1;
-        //     const background_y_offset = viewport_y * -1;
-
-        //     const address_offset: u16 = 0x9800;
-        //     var y: u6 = 0;
-        //     while (y < 32) : (y += 1) {
-        //         const tile_y = background_y_offset + (@as(i16, y) * 8);
-        //         var x: u6 = 0;
-        //         while (x < 32) : (x += 1) {
-        //             const address: u16 = address_offset + (@as(u16, y) * 32) + x;
-        //             const tile_map_index = cpu.memory[address];
-        //             if (tile_map_index <= 0) {
-        //                 continue;
-        //             }
-        //             const tile_x: i16 = background_x_offset + (@as(i16, x) * 8);
-        //             try renderTile(&renderer, cpu, tile_map_index, tile_x, tile_y);
-        //         }
-        //     }
-        //     const address_offset_object: u16 = 0xFE00;
-        //     var object_index: u16 = 0;
-        //     while (object_index < 40) : (object_index += 1) {
-        //         const object_base = address_offset_object + (object_index * 4);
-        //         const y_position = cpu.memory[object_base];
-        //         if (y_position == 0 or y_position >= 160) {
-        //             continue;
-        //         }
-        //         const x_position = cpu.memory[object_base + 1];
-        //         if (x_position == 0 or x_position >= 168) {
-        //             continue;
-        //         }
-        //         const tile_index = cpu.memory[object_base + 2];
-        //         // var height: u5 = 8;
-        //         if (obj_size == 1) {
-        //             // height = 16;
-        //             @breakpoint();
-        //         } else {
-        //             // @breakpoint();
-        //             try renderTile(&renderer, cpu, tile_index, x_position, y_position);
-        //         }
-        //     }
-        // }
 
         var end = SDL.getPerformanceCounter();
         var elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
@@ -251,8 +192,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
         const texture = try SDL.createTextureFromSurface(renderer, surface);
         defer texture.destroy();
         const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = 20 };
-        _ = text_rect;
-        // try renderer.copy(texture, text_rect, null);
+        try renderer.copy(texture, text_rect, null);
         renderer.present();
     }
 }
@@ -293,9 +233,6 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.debug and cpu.counter > 151000) {
             // cpu.should_print = true;
         }
-        if (cpu.debug and cpu.counter > 151345) {
-            // @breakpoint();
-        }
         _ = try runCpu(cpu);
     }
 }
@@ -309,9 +246,6 @@ fn runCpu(cpu: *Cpu) !u8 {
     if (serial_value > 0) {
         std.debug.print("{c}", .{serial_value});
         cpu.memory[0xFF01] = 0;
-        if (serial_value == 'd') {
-            // break;
-        }
     }
     cpu.handleTimer(dots);
     const interrupt_dots = cpu.handleInterrupts();
@@ -323,26 +257,7 @@ fn fakeCartridge(cpu: *Cpu) void {
     var logo_index: u16 = 0;
     while (logo_index < 0x30) : (logo_index += 1) {
         cpu.memory[0x104 + logo_index] = cpu.memory[0xA8 + logo_index];
-        // std.debug.print("{X:02}\n", .{cpu.memory[0x104 + logo_index]});
     }
     // Checksum
     cpu.memory[0x14D] = 0xE7;
-}
-
-fn renderBackgroundViewPort() void {
-    // const x_offset = x_coord - (scale_i * 256);
-    // const y_offset = y_coord - (scale_i * 256);
-    // try renderer.setColorRGB(0xFF, 0, 0);
-    // var background_viewport = SDL.Rectangle{ .x = x_coord, .y = y_coord, .width = width, .height = height };
-    // try renderer.drawRect(background_viewport);
-    // if (x_coord < 0 or y_coord < 0) {
-    //     if (x_coord < 0) {
-    //         x_coord += 256 * scale;
-    //     }
-    //     if (y_coord < 0) {
-    //         y_coord += 256 * scale;
-    //     }
-    //     background_viewport = SDL.Rectangle{ .x = x_coord, .y = y_coord, .width = width, .height = height };
-    //     try renderer.drawRect(background_viewport);
-    // }
 }

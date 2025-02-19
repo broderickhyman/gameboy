@@ -2,12 +2,6 @@ const std = @import("std");
 const Self = @This();
 const utils = @import("utils.zig");
 
-// const x: u2 = @truncate(op_code >> 6);
-// const y: u3 = @truncate(op_code >> 3);
-// const z: u3 = @truncate(op_code);
-// const p: u2 = @truncate(y >> 1);
-// const q: u1 = @truncate(y);
-
 memory: []u8,
 pc: u16,
 counter: u32,
@@ -287,6 +281,7 @@ fn ld_r_r(self: *Self, op_code: u8) u8 {
     const register2 = reg_8[z];
     self.print("LD {s},{s}\n", .{ register1, register2 });
     if (y == z) {
+        // Software breakpoint
         // @breakpoint();
     }
     self.getRegDataPointer(y).* = self.getRegDataValue(z);

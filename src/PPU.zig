@@ -35,15 +35,12 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
         .window_triggered = false,
         .window_index = 0,
     };
-    ppu.stat_ptr.* = 0x85;
-    ppu.lcdc_ptr.* = 0x91;
     return ppu;
 }
 
 pub fn render(self: *Self, dots: u32) !void {
     const mode_2_length = 80;
     const mode_3_length = 226;
-    // const mode_0_length = 150;
     var current_dots = dots;
     while (current_dots > 0) {
         self.line_progress += 1;
@@ -132,10 +129,8 @@ fn renderLine(self: *Self) !void {
     const current_line: u8 = self.ly_ptr.*;
 
     const bg_window_enabled = self.getLcdcValue(0);
-    // if (bg_window_enabled) {
     const scy = self.cpu.memory[0xFF42];
     const scx = self.cpu.memory[0xFF43];
-    // const wy = self.cpu.memory[0xFF4A];
     const wx = self.cpu.memory[0xFF4B];
     const fetcher_y = (current_line + scy) & 255;
     const window_enabled = self.getLcdcValue(5);
@@ -143,13 +138,11 @@ fn renderLine(self: *Self) !void {
     const address_mode_8000 = self.getLcdcValue(4);
     var current_x: u8 = 0;
     while (current_x < 160) : (current_x += 8) {
-        // var adjusted_x = current_x;
         var adjusted_y = fetcher_y;
         var fetcher_x: u8 = undefined;
         var background_tile_address: u16 = 0x9800;
         if (self.window_triggered and window_enabled and wx <= current_x + 7) {
             window_rendered = true;
-            // adjusted_x = wx - 7 - current_x;
             fetcher_x = ((current_x - (wx - 7)) / 8) & 31;
             adjusted_y = self.window_index;
             if (self.getLcdcValue(6)) {
@@ -262,8 +255,6 @@ fn renderLine(self: *Self) !void {
                         continue;
                     }
                     const color = getColor(palette_ptr, color_index);
-                    // _ = color;
-                    // _ = obj_x;
                     try self.renderer.setColorRGB(color, color, color);
                     try self.renderer.drawPoint(obj_x - 8 + byte_index, current_line);
                 }
