@@ -251,7 +251,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
         const texture = try SDL.createTextureFromSurface(renderer, surface);
         defer texture.destroy();
         const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = 20 };
-        try renderer.copy(texture, text_rect, null);
+        _ = text_rect;
+        // try renderer.copy(texture, text_rect, null);
         renderer.present();
     }
 }

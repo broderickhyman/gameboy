@@ -205,18 +205,22 @@ fn renderLine(self: *Self) !void {
         }
         var object_index: u8 = 0;
         var found: u8 = 0;
-        while (object_index < 40 and found < 10) : (object_index += 1) {
+        while (object_index < 40 and found <= 10) : (object_index += 1) {
             const oam_address: u16 = @as(u16, 0xFE00) + object_index * 4;
             const obj_y = self.cpu.memory[oam_address];
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
                 const obj_attributes = self.cpu.memory[oam_address + 3];
-                const priority = (obj_attributes >> 7) & 1 == 1;
-                if (priority) {
-                    continue;
-                }
+                // TODO
+                // const priority = (obj_attributes >> 7) & 1 == 1;
+                // if (priority) {
+                //     continue;
+                // }
                 const obj_x = self.cpu.memory[oam_address + 1];
+                if (self.cpu.counter > 84594 and current_line == 88 and obj_x - 8 == 48) {
+                    // @breakpoint();
+                }
                 var inner_y = (current_line + 16) - obj_y;
                 const y_flip = (obj_attributes >> 6) & 1 == 1;
                 const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
@@ -255,10 +259,12 @@ fn renderLine(self: *Self) !void {
                     const bit_low: u1 = @truncate(tile_low >> shift);
                     const bit_high: u1 = @truncate(tile_high >> shift);
                     const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-                    if (color_index == 0) {
-                        continue;
-                    }
+                    // if (color_index == 0) {
+                    //     continue;
+                    // }
                     const color = getColor(palette_ptr, color_index);
+                    // _ = color;
+                    // _ = obj_x;
                     try self.renderer.setColorRGB(color, color, color);
                     try self.renderer.drawPoint(obj_x - 8 + byte_index, current_line);
                 }

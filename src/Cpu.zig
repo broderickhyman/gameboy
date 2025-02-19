@@ -286,6 +286,9 @@ fn ld_r_r(self: *Self, op_code: u8) u8 {
     const register1 = reg_8[y];
     const register2 = reg_8[z];
     self.print("LD {s},{s}\n", .{ register1, register2 });
+    if (y == z) {
+        // @breakpoint();
+    }
     self.getRegDataPointer(y).* = self.getRegDataValue(z);
     if (y == 6 or z == 6) {
         return 8;
