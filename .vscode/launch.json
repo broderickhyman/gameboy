@@ -25,6 +25,15 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Mario",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["20", "--display"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Red",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["13", "--display"],

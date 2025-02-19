@@ -61,6 +61,7 @@ pub fn main() !void {
         17 => "../gb-test-roms/mem_timing/mem_timing.gb",
         18 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
         19 => "../roms/tetris.gb",
+        20 => "../roms/sml.gb",
         else => "",
     };
     var paths: [2][]const u8 = undefined;
@@ -192,7 +193,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
         const texture = try SDL.createTextureFromSurface(renderer, surface);
         defer texture.destroy();
         const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = 20 };
-        try renderer.copy(texture, text_rect, null);
+        _ = text_rect;
+        // try renderer.copy(texture, text_rect, null);
         renderer.present();
     }
 }

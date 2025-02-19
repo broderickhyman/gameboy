@@ -148,6 +148,15 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     return self.getMemoryPointer(address).*;
 }
 
+pub fn writeMemory(self: *Self, address: u16, value: u8) void {
+    self.memory[address] = value;
+    if (address == 0xFF46) {
+        // OAM DMA
+        self.dma(value);
+        @breakpoint();
+    }
+}
+
 pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
     if (address == 0xFF46) {
         // OAM DMA
@@ -247,7 +256,30 @@ fn nop(_: *Self, _: u8) u8 {
 }
 
 fn nop_vd(_: *Self, _: u8) u8 {
-    std.debug.panic("Unknown behavior", .{});
+    return 4;
+    // std.debug.panic("Unknown behavior", .{});
+}
+
+fn dma(self: *Self, address_index: u8) void {
+    // std.debug.print("Index: {x}\n", .{address_index});
+    const source_start: u16 = @as(u16, address_index) << 8;
+    // var i: usize = 0;
+    // while (i < 100) : (i += 1) {
+    //     std.debug.print("Before: {x} {x}\n", .{ self.memory[source_start + i], self.memory[0xFE00 + i] });
+    // }
+    const source_end: u16 = source_start | 0x9F;
+    const source = self.memory[source_start..source_end];
+    // for (source) |temp| {
+    //     if (temp != 0) {
+    //         std.debug.print("Before: {x}\n", .{temp});
+    //     }
+    // }
+    const destination = self.memory[0xFE00..0xFE9F];
+    @memcpy(destination, source);
+    // i = 0;
+    // while (i < 100) : (i += 1) {
+    //     std.debug.print("After: {x} {x}\n", .{ self.memory[source_start + i], self.memory[0xFE00 + i] });
+    // }
 }
 
 // Load
@@ -378,7 +410,7 @@ fn ldh_a8_a(self: *Self, _: u8) u8 {
     self.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xFF00) + displacement;
     if (address >= 0xFF00 and address <= 0xFFFF) {
-        self.getMemoryPointer(address).* = a_reg.*;
+        self.writeMemory(address, a_reg.*);
     } else {
         std.debug.panic("Bad Address", .{});
     }
