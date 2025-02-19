@@ -213,30 +213,29 @@ fn renderLine(self: *Self) !void {
                 found += 1;
                 const obj_attributes = self.cpu.memory[oam_address + 3];
                 // TODO
-                // const priority = (obj_attributes >> 7) & 1 == 1;
-                // if (priority) {
-                //     continue;
-                // }
-                const obj_x = self.cpu.memory[oam_address + 1];
-                if (self.cpu.counter > 84594 and current_line == 88 and obj_x - 8 == 48) {
-                    // @breakpoint();
+                const priority = (obj_attributes >> 7) & 1 == 1;
+                if (priority) {
+                    continue;
                 }
-                var inner_y = (current_line + 16) - obj_y;
+                const obj_x = self.cpu.memory[oam_address + 1];
+                const obj_inner_y = (current_line + 16) - obj_y;
+                var tile_inner_y = obj_inner_y % 8;
                 const y_flip = (obj_attributes >> 6) & 1 == 1;
                 const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
                 var tile_address: u16 = 0x8000;
                 if (object_height == 8) {
                     tile_address += obj_tile_index * 16;
                 } else {
-                    // tile_address += obj_tile_index * 16 * 2;
-                    if (inner_y >= 8) {
-                        tile_address += (obj_tile_index & 0xFE) * 16;
-                    } else {
+                    if ((!y_flip and obj_inner_y >= 8) or (y_flip and obj_inner_y <= 7)) {
+                        // Bottom
                         tile_address += (obj_tile_index | 0x01) * 16;
+                    } else {
+                        // Top
+                        tile_address += (obj_tile_index & 0xFE) * 16;
                     }
                 }
                 if (y_flip) {
-                    inner_y = object_height - 1 - inner_y;
+                    tile_inner_y = 8 - 1 - tile_inner_y;
                 }
                 const x_flip = (obj_attributes >> 5) & 1 == 1;
                 var palette_ptr: *u8 = undefined;
@@ -245,7 +244,7 @@ fn renderLine(self: *Self) !void {
                 } else {
                     palette_ptr = self.obj0_color_ptr;
                 }
-                const tile_row_address = tile_address + (inner_y * 2);
+                const tile_row_address = tile_address + (tile_inner_y * 2);
                 const tile_low = self.cpu.memory[tile_row_address];
                 const tile_high = self.cpu.memory[tile_row_address + 1];
                 var byte_index: u4 = 0;
@@ -259,9 +258,9 @@ fn renderLine(self: *Self) !void {
                     const bit_low: u1 = @truncate(tile_low >> shift);
                     const bit_high: u1 = @truncate(tile_high >> shift);
                     const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-                    // if (color_index == 0) {
-                    //     continue;
-                    // }
+                    if (color_index == 0) {
+                        continue;
+                    }
                     const color = getColor(palette_ptr, color_index);
                     // _ = color;
                     // _ = obj_x;
