@@ -232,7 +232,7 @@ fn renderLine(self: *Self) !void {
                     }
                 }
                 if (y_flip) {
-                    inner_y = object_height - inner_y;
+                    inner_y = object_height - 1 - inner_y;
                 }
                 const x_flip = (obj_attributes >> 5) & 1 == 1;
                 var palette_ptr: *u8 = undefined;
