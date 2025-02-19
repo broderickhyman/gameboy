@@ -98,6 +98,17 @@ fn newLine(self: *Self) void {
     } else {
         utils.resetBit(self.stat_ptr, 2);
     }
+    // std.debug.print("Y:{d:03} 7:{b} 6:{b} 5:{b} 4:{b} 3:{b} 2:{b} 1:{b} 0:{b}\n", .{
+    //     self.ly_ptr.*,
+    //     @intFromBool(self.getLcdcValue(7)),
+    //     @intFromBool(self.getLcdcValue(6)),
+    //     @intFromBool(self.getLcdcValue(5)),
+    //     @intFromBool(self.getLcdcValue(4)),
+    //     @intFromBool(self.getLcdcValue(3)),
+    //     @intFromBool(self.getLcdcValue(2)),
+    //     @intFromBool(self.getLcdcValue(1)),
+    //     @intFromBool(self.getLcdcValue(0)),
+    // });
 }
 
 fn requestInterruptIfSelected(self: *Self, select_num: u3) void {
@@ -159,7 +170,7 @@ fn renderLine(self: *Self) !void {
             tile_address = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
         } else {
             const tile_map_index_signed: i8 = @bitCast(tile_map_index);
-            tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + tile_map_index_signed)));
+            tile_address = @bitCast(@as(i16, @truncate(@as(i17, 0x9000) + (@as(i17, tile_map_index_signed) * 16))));
         }
         const inner_y = adjusted_y % 8;
         const tile_row_address = tile_address + (inner_y * 2);
