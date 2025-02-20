@@ -17,9 +17,13 @@ obj0_color_ptr: *u8,
 obj1_color_ptr: *u8,
 window_triggered: bool,
 window_index: u8,
+bg_pixels: []Pixel,
+obj_pixels: []Pixel,
 
 pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Renderer) !*Self {
     const ppu = try allocator.create(Self);
+    const bg_pixels = try allocator.alloc(Pixel, 160);
+    const obj_pixels = try allocator.alloc(Pixel, 160);
     ppu.* = .{
         .cpu = cpu,
         .renderer = renderer,
@@ -34,6 +38,8 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
         .obj1_color_ptr = cpu.getMemoryPointer(0xFF49),
         .window_triggered = false,
         .window_index = 0,
+        .bg_pixels = bg_pixels,
+        .obj_pixels = obj_pixels,
     };
     return ppu;
 }
@@ -126,6 +132,19 @@ fn renderLine(self: *Self) !void {
     if (!lcd_on) {
         return;
     }
+    var obj_index: usize = 0;
+    while (obj_index < self.obj_pixels.len) : (obj_index += 1) {
+        self.obj_pixels[obj_index].color_index = 0;
+        self.obj_pixels[obj_index].palette = self.obj0_color_ptr;
+        self.obj_pixels[obj_index].priority = false;
+    }
+    var bg_index: usize = 0;
+    while (bg_index < self.bg_pixels.len) : (bg_index += 1) {
+        self.bg_pixels[bg_index].color_index = 0;
+        self.bg_pixels[bg_index].palette = self.bg_color_ptr;
+        self.bg_pixels[bg_index].priority = false;
+    }
+
     const current_line: u8 = self.ly_ptr.*;
 
     const bg_window_enabled = self.getLcdcValue(0);
@@ -178,15 +197,15 @@ fn renderLine(self: *Self) !void {
             if (!bg_window_enabled) {
                 color_index = 0;
             }
-            const color = getColor(self.bg_color_ptr, color_index);
-            try self.renderer.setColorRGB(color, color, color);
-            try self.renderer.drawPoint(current_x + byte_index, current_line);
+            var pixel = &self.bg_pixels[current_x + byte_index];
+            pixel.color_index = color_index;
+            pixel.palette = self.bg_color_ptr;
+            pixel.priority = false;
         }
     }
     if (window_rendered) {
         self.window_index += 1;
     }
-    // }
 
     const obj_enable = self.getLcdcValue(1);
     if (obj_enable) {
@@ -196,20 +215,16 @@ fn renderLine(self: *Self) !void {
         } else {
             object_height = 8;
         }
-        var object_index: u8 = 0;
+        var object_map_index: u8 = 0;
         var found: u8 = 0;
-        while (object_index < 40 and found <= 9) : (object_index += 1) {
-            const oam_address: u16 = @as(u16, 0xFE00) + object_index * 4;
+        while (object_map_index < 40 and found <= 9) : (object_map_index += 1) {
+            const oam_address: u16 = @as(u16, 0xFE00) + object_map_index * 4;
             const obj_y = self.cpu.memory[oam_address];
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
                 const obj_attributes = self.cpu.memory[oam_address + 3];
-                // TODO
                 const priority = (obj_attributes >> 7) & 1 == 1;
-                if (priority) {
-                    continue;
-                }
                 const obj_x = self.cpu.memory[oam_address + 1];
                 const obj_inner_y = (current_line + 16) - obj_y;
                 var tile_inner_y = obj_inner_y % 8;
@@ -251,23 +266,43 @@ fn renderLine(self: *Self) !void {
                     const bit_low: u1 = @truncate(tile_low >> shift);
                     const bit_high: u1 = @truncate(tile_high >> shift);
                     const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-                    if (color_index == 0) {
-                        continue;
-                    }
-                    const color = getColor(palette_ptr, color_index);
-                    try self.renderer.setColorRGB(color, color, color);
-                    try self.renderer.drawPoint(obj_x - 8 + byte_index, current_line);
+                    var pixel = &self.obj_pixels[obj_x - 8 + byte_index];
+                    pixel.color_index = color_index;
+                    pixel.palette = palette_ptr;
+                    pixel.priority = priority;
                 }
             }
         }
     }
+    var pixel_index: u8 = 0;
+    while (pixel_index < 160) : (pixel_index += 1) {
+        const obj_pixel = &self.obj_pixels[pixel_index];
+        const bg_pixel = &self.bg_pixels[pixel_index];
+        if (obj_pixel.color_index == 0 or (obj_pixel.priority and bg_pixel.color_index > 0)) {
+            try self.drawPixel(bg_pixel, pixel_index);
+        } else {
+            try self.drawPixel(obj_pixel, pixel_index);
+        }
+    }
 }
 
-fn getColor(pointer: *u8, index: u3) u8 {
+fn drawPixel(self: *Self, pixel: *const Pixel, x: u8) !void {
+    const color = getColor(pixel.palette, pixel.color_index);
+    try self.renderer.setColorRGB(color, color, color);
+    try self.renderer.drawPoint(x, self.ly_ptr.*);
+}
+
+fn getColor(pointer: *u8, index: u2) u8 {
     const colors = [_]u8{ 0xFF, 0xAA, 0x55, 0x00 };
-    return colors[(pointer.* >> (index * 2)) & 0b11];
+    return colors[(pointer.* >> (@as(u3, index) * 2)) & 0b11];
 }
 
 fn getLcdcValue(self: *Self, bit_num: u3) bool {
     return ((self.lcdc_ptr.* >> bit_num) & 1) == 1;
 }
+
+const Pixel = struct {
+    color_index: u2,
+    palette: *u8,
+    priority: bool,
+};
