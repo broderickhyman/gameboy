@@ -25,6 +25,15 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Tetris Debug",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["19", "--display", "--debug", "--verbose"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Mario",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["20", "--display"],

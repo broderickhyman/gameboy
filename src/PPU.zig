@@ -69,6 +69,7 @@ pub fn render(self: *Self, dots: u32) !void {
                 self.requestInterruptIfSelected(5);
             } else {
                 self.setPpuMode(1);
+                self.cpu.requestInterrupt(0);
                 self.requestInterruptIfSelected(4);
             }
             continue;
@@ -78,7 +79,6 @@ pub fn render(self: *Self, dots: u32) !void {
             if (self.ly_ptr.* > 153) {
                 self.setPpuMode(2);
                 self.requestInterruptIfSelected(5);
-                self.cpu.requestInterrupt(0);
                 self.ly_ptr.* = 0;
                 self.window_index = 0;
                 self.window_triggered = false;
@@ -89,7 +89,8 @@ pub fn render(self: *Self, dots: u32) !void {
 }
 
 fn newLine(self: *Self) void {
-    self.ly_ptr.* += 1;
+    const result = @addWithOverflow(self.ly_ptr.*, 1);
+    self.ly_ptr.* = result[0];
     const wy = self.cpu.memory[0xFF4A];
     if (self.ly_ptr.* == wy) {
         self.window_triggered = true;
@@ -145,7 +146,7 @@ fn renderLine(self: *Self) !void {
         self.bg_pixels[bg_index].palette = self.bg_color_ptr;
     }
 
-    const current_line: u8 = self.ly_ptr.*;
+    const current_line: u10 = self.ly_ptr.*;
 
     const bg_window_enabled = self.getLcdcValue(0);
     const scy = self.cpu.memory[0xFF42];
@@ -219,7 +220,7 @@ fn renderLine(self: *Self) !void {
         var found: u8 = 0;
         while (object_map_index < 40 and found <= 9) : (object_map_index += 1) {
             const oam_address: u16 = @as(u16, 0xFE00) + object_map_index * 4;
-            const obj_y = self.cpu.memory[oam_address];
+            const obj_y: u10 = self.cpu.memory[oam_address];
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;

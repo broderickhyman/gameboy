@@ -82,6 +82,8 @@ fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16
     const is_enabled = (enabled.* >> shift) & 0b1;
     const is_flagged = (flag.* >> shift) & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
+        std.debug.print("Interrupt: {d}\n", .{shift});
+        // @breakpoint();
         self.halted = false;
         self.ime = 0;
         utils.resetBit(flag, shift);
@@ -139,11 +141,7 @@ pub fn readMemory(self: *Self, address: u16) u8 {
             return 0x90; // 144 = VBlank
         }
     }
-    // if (address == 0xFF42) {
-    //     return 0;
-    // }
-    // main_memory[0xFF44] = 0;
-    // main_memory[0xFF40] = 0b10100010;
+    breakOnAddress(address);
 
     return self.getMemoryPointer(address).*;
 }
@@ -153,8 +151,8 @@ pub fn writeMemory(self: *Self, address: u16, value: u8) void {
     if (address == 0xFF46) {
         // OAM DMA
         self.dma(value);
-        @breakpoint();
     }
+    breakOnAddress(address);
 }
 
 pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
@@ -162,11 +160,16 @@ pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
         // OAM DMA
         @breakpoint();
     }
-    // if (address == 0xFF45) {
-    //     @breakpoint();
-    //     std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
-    // }
+    breakOnAddress(address);
     return &self.memory[address];
+}
+
+fn breakOnAddress(address: u16) void {
+    if (address > 0xC300 and address < 0xC400) {
+        // std.debug.print("{X}\n", .{address});
+        // @breakpoint();
+        // std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
+    }
 }
 
 fn read(self: *Self) u8 {
@@ -261,21 +264,35 @@ fn nop_vd(_: *Self, _: u8) u8 {
 }
 
 fn dma(self: *Self, address_index: u8) void {
+    // @breakpoint();
     // std.debug.print("Index: {x}\n", .{address_index});
     const source_start: u16 = @as(u16, address_index) << 8;
     // var i: usize = 0;
     // while (i < 100) : (i += 1) {
     //     std.debug.print("Before: {x} {x}\n", .{ self.memory[source_start + i], self.memory[0xFE00 + i] });
     // }
-    const source_end: u16 = source_start | 0x9F;
-    const source = self.memory[source_start..source_end];
-    // for (source) |temp| {
-    //     if (temp != 0) {
-    //         std.debug.print("Before: {x}\n", .{temp});
+    // const source_end: u16 = source_start | 0x9F;
+    // const source = self.memory[source_start..source_end];
+    const destination_start: u16 = 0xFE00;
+    var index: usize = 0;
+    // while (index < 0x9F) : (index += 1) {
+    //     if (self.memory[source_start + index] > 0) {
+    //         std.debug.print("Before: {x}\n", .{self.memory[source_start + index]});
     //     }
     // }
-    const destination = self.memory[0xFE00..0xFE9F];
-    @memcpy(destination, source);
+    // index = 0;
+    while (index < 0x9F) : (index += 1) {
+        self.memory[destination_start + index] = self.memory[source_start + index];
+    }
+    // index = 0;
+    // while (index < 0x9F) : (index += 1) {
+    //     if (self.memory[destination_start + index] > 0) {
+    //         std.debug.print("After: {x}\n", .{self.memory[destination_start + index]});
+    //     }
+    // }
+    // @breakpoint();
+    // const destination = &self.memory[0xFE00..0xFE9F];
+    // @memcpy(destination, source);
     // i = 0;
     // while (i < 100) : (i += 1) {
     //     std.debug.print("After: {x} {x}\n", .{ self.memory[source_start + i], self.memory[0xFE00 + i] });

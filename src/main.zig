@@ -84,7 +84,17 @@ pub fn main() !void {
     const main_memory = try fba_allocator.alloc(u8, 0xFFFF + 1);
     defer fba_allocator.free(main_memory);
     @memset(main_memory, 0);
-    _ = try file.readAll(main_memory);
+    const length_read = try file.readAll(main_memory);
+    _ = length_read;
+    // Joypad
+    main_memory[0xFF00] = 0xFF;
+    // std.debug.print("{X:4}\n", .{length_read});
+
+    // var mem_index: usize = 0;
+    // while (mem_index < 0x100) : (mem_index += 1) {
+    //     std.debug.print("{X:2}\n", .{main_memory[0xC300 + mem_index]});
+    // }
+    // @breakpoint();
 
     const cpu = try Cpu.create(&gpa_allocator, main_memory, start_pc, std_out);
     defer gpa_allocator.destroy(cpu);
