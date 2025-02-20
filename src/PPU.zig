@@ -137,12 +137,12 @@ fn renderLine(self: *Self) !void {
         self.obj_pixels[obj_index].color_index = 0;
         self.obj_pixels[obj_index].palette = self.obj0_color_ptr;
         self.obj_pixels[obj_index].priority = false;
+        self.obj_pixels[obj_index].obj_x = 0;
     }
     var bg_index: usize = 0;
     while (bg_index < self.bg_pixels.len) : (bg_index += 1) {
         self.bg_pixels[bg_index].color_index = 0;
         self.bg_pixels[bg_index].palette = self.bg_color_ptr;
-        self.bg_pixels[bg_index].priority = false;
     }
 
     const current_line: u8 = self.ly_ptr.*;
@@ -257,6 +257,15 @@ fn renderLine(self: *Self) !void {
                 const tile_high = self.cpu.memory[tile_row_address + 1];
                 var byte_index: u4 = 0;
                 while (byte_index < 8) : (byte_index += 1) {
+                    var pixel = &self.obj_pixels[obj_x - 8 + byte_index];
+                    if (pixel.obj_x > 0 and pixel.obj_x < obj_x) {
+                        // Lower X has priority
+                        continue;
+                    }
+                    if (pixel.obj_x == obj_x and pixel.color_index > 0) {
+                        // Then lower OAM index has priority
+                        continue;
+                    }
                     var shift: u3 = undefined;
                     if (x_flip) {
                         shift = @truncate(byte_index);
@@ -266,10 +275,10 @@ fn renderLine(self: *Self) !void {
                     const bit_low: u1 = @truncate(tile_low >> shift);
                     const bit_high: u1 = @truncate(tile_high >> shift);
                     const color_index: u2 = (@as(u2, bit_high) << 1) | bit_low;
-                    var pixel = &self.obj_pixels[obj_x - 8 + byte_index];
                     pixel.color_index = color_index;
                     pixel.palette = palette_ptr;
                     pixel.priority = priority;
+                    pixel.obj_x = obj_x;
                 }
             }
         }
@@ -305,4 +314,5 @@ const Pixel = struct {
     color_index: u2,
     palette: *u8,
     priority: bool,
+    obj_x: u8,
 };

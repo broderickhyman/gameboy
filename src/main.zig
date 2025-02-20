@@ -53,7 +53,7 @@ pub fn main() !void {
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // Passed
-        12 => "../roms/dmg-acid2.gb",
+        12 => "../roms/dmg-acid2.gb", // Passed
         13 => "../roms/red.gb",
         14 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
         15 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
