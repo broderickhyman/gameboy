@@ -53,8 +53,7 @@
         //    .lazy = false,
         //},
         .sdl = .{
-            .url = "https://github.com/ikskuh/SDL.zig/archive/refs/heads/master.tar.gz",
-            .hash = "1220dc7b8b63eab7a4184fde897e51f8f1301d8615a0bbb0c9f8f0b693fa38055c4e",
+            .path = "../SDL.zig/",
         },
     },
 
