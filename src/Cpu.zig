@@ -9,6 +9,7 @@ debug: bool,
 verbose: bool,
 should_print: bool,
 std_out: std.fs.File.Writer,
+log_out: ?std.fs.File.Writer,
 is_doctor_test: bool,
 ime: u1,
 extra_dots: u8,
@@ -16,7 +17,13 @@ extra_timer_cycles: u10,
 div_counter: u10,
 halted: bool,
 
-pub fn create(allocator: *const std.mem.Allocator, main_memory: []u8, start_pc: u16, std_out: std.fs.File.Writer) !*Self {
+pub fn create(
+    allocator: *const std.mem.Allocator,
+    main_memory: []u8,
+    start_pc: u16,
+    std_out: std.fs.File.Writer,
+    log_out: ?std.fs.File.Writer,
+) !*Self {
     const cpu = try allocator.create(Self);
 
     cpu.* = .{
@@ -27,6 +34,7 @@ pub fn create(allocator: *const std.mem.Allocator, main_memory: []u8, start_pc: 
         .debug = false,
         .verbose = false,
         .std_out = std_out,
+        .log_out = log_out,
         .is_doctor_test = false,
         .ime = 0,
         .extra_dots = 0,
@@ -82,7 +90,7 @@ fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16
     const is_enabled = (enabled.* >> shift) & 0b1;
     const is_flagged = (flag.* >> shift) & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
-        std.debug.print("Interrupt: {d}\n", .{shift});
+        self.print("Interrupt: {d}\n", .{shift});
         // @breakpoint();
         self.halted = false;
         self.ime = 0;
@@ -186,6 +194,9 @@ fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
     if (self.should_print and self.debug) {
         std.debug.print(fmt, args);
     }
+    if (self.log_out != null) {
+        self.log_out.?.print(fmt, args) catch unreachable;
+    }
 }
 
 pub fn printFlags(self: *Self) void {
@@ -264,8 +275,8 @@ fn nop_vd(_: *Self, _: u8) u8 {
 }
 
 fn dma(self: *Self, address_index: u8) void {
-    // @breakpoint();
-    // std.debug.print("Index: {x}\n", .{address_index});
+    @breakpoint();
+    self.print("DMA: Index: {x}\n", .{address_index});
     const source_start: u16 = @as(u16, address_index) << 8;
     // var i: usize = 0;
     // while (i < 100) : (i += 1) {

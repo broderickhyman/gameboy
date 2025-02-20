@@ -18,6 +18,7 @@ pub fn main() !void {
     defer std.process.argsFree(gpa_allocator, args);
     var verbose = false;
     var debug = false;
+    var log_enabled = false;
     var should_print = false;
     var file_num: u8 = 7;
     var args_index: u3 = 1;
@@ -33,6 +34,8 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "--display")) {
             display = true;
             should_print = false;
+        } else if (std.mem.eql(u8, arg, "--log")) {
+            log_enabled = true;
         } else {
             file_num = try std.fmt.parseInt(u8, arg, 10);
         }
@@ -96,7 +99,17 @@ pub fn main() !void {
     // }
     // @breakpoint();
 
-    const cpu = try Cpu.create(&gpa_allocator, main_memory, start_pc, std_out);
+    var log_out: ?std.fs.File.Writer = null;
+    if (log_enabled) {
+        const log_file = try std.fs.cwd().createFile(
+            "output.log",
+            .{},
+        );
+        // defer log_file.close();
+        log_out = log_file.writer();
+    }
+
+    const cpu = try Cpu.create(&gpa_allocator, main_memory, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
 
     cpu.should_print = should_print;

@@ -18,7 +18,7 @@
       "request": "launch",
       "name": "Tetris",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["19", "--display"],
+      "args": ["19", "--display", "--log"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },
