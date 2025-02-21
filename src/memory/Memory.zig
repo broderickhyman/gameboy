@@ -35,11 +35,19 @@ pub fn create(allocator: *const std.mem.Allocator) !*Self {
 }
 
 pub fn read(self: *Self, address: u16) u8 {
+    // self.breakOnAddress(address);
+
+    const result = self.read_int(address);
+
+    // self.debugWrite(address, result);
+
+    return result;
+}
+
+fn read_int(self: *Self, address: u16) u8 {
     if (address == 0xFF00) {
         return self.joypad.read();
     }
-
-    breakOnAddress(address);
 
     return switch (address) {
         0...0x3FFF => self.rom_1.read(address),
@@ -74,7 +82,7 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         },
         else => {},
     }
-    breakOnAddress(address);
+    // self.breakOnAddress(address);
 
     switch (address) {
         0x8000...0x9FFF => self.vram.write(address, value),
@@ -84,20 +92,27 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         0xFE00...0xFE9F => self.oam.write(address, value),
         0xFF00...0xFF7F => self.io.write(address, value),
         0xFF80...0xFFFE => self.hram.write(address, value),
+        0xFFFF => self.ie = value,
         else => {},
     }
+    // self.debugWrite(address, value);
 }
 
-fn breakOnAddress(address: u16) void {
+fn breakOnAddress(_: *Self, address: u16) void {
     switch (address) {
         // 0xFF00 => @breakpoint(),
         // 0xFF04 => @breakpoint(),
         else => {},
     }
-    if (address == 0xFF00) {
-        // std.debug.print("{X}\n", .{address});
+    if (address == 0xFF40) {
         // @breakpoint();
-        // std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
+    }
+}
+
+fn debugWrite(self: *Self, address: u16, value: u8) void {
+    if (address == 0xFF40) {
+        // std.debug.print("{X}\n", .{address});
+        std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
     }
 }
 

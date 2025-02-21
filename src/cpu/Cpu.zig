@@ -62,9 +62,9 @@ pub fn handleInterrupts(self: *Self) u8 {
     if (self.ime == 0) {
         return 0;
     }
-    const enabled = self.memory.io.getMemoryPointer(0xFFFF);
+    const enabled = self.memory.ie;
     const flag = self.memory.io.getMemoryPointer(0xFF0F);
-    if (enabled.* == 0 or flag.* == 0) {
+    if (enabled == 0 or flag.* == 0) {
         return 0;
     }
     if (self.handleInterrupt(enabled, flag, 0, 0x40)) {
@@ -90,8 +90,8 @@ pub fn handleInterrupts(self: *Self) u8 {
     return 0;
 }
 
-fn handleInterrupt(self: *Self, enabled: *u8, flag: *u8, shift: u3, address: u16) bool {
-    const is_enabled = (enabled.* >> shift) & 0b1;
+fn handleInterrupt(self: *Self, enabled: u8, flag: *u8, shift: u3, address: u16) bool {
+    const is_enabled = (enabled >> shift) & 0b1;
     const is_flagged = (flag.* >> shift) & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
         self.print("Interrupt: {d}\n", .{shift});
