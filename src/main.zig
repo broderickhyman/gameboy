@@ -89,8 +89,6 @@ pub fn main() !void {
     @memset(main_memory, 0);
     const length_read = try file.readAll(main_memory);
     _ = length_read;
-    // Joypad
-    main_memory[0xFF00] = 0xFF;
     // std.debug.print("{X:4}\n", .{length_read});
 
     // var mem_index: usize = 0;
@@ -182,7 +180,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
             }
         }
 
-        try renderer.setColor(SDL.Color.green);
+        try renderer.setColor(SDL.Color.black);
         try renderer.clear();
 
         if (run_cpu) {
@@ -267,10 +265,17 @@ fn runCpu(cpu: *Cpu) !u8 {
     if (!cpu.halted) {
         try cpu.logState();
     }
-    const serial_value = cpu.memory[0xFF01];
-    if (serial_value > 0) {
-        std.debug.print("{c}", .{serial_value});
-        cpu.memory[0xFF01] = 0;
+    const serial_control = cpu.memory[0xFF02];
+    const serial_enabled = serial_control >> 7 & 1 == 1;
+    if (cpu.is_doctor_test and serial_enabled) {
+        // std.debug.print("Serial: {b}\n", .{serial_control});
+        const serial_value = cpu.memory[0xFF01];
+        if (serial_value > 0) {
+            std.debug.print("{c}", .{serial_value});
+            cpu.memory[0xFF01] = 0;
+        }
+        // cpu.memory[0xFF02] = (~(@as(u8, 1) << 7)) & serial_control;
+        // std.debug.print("Serial: {b}\n", .{cpu.memory[0xFF02]});
     }
     cpu.handleTimer(dots);
     const interrupt_dots = cpu.handleInterrupts();

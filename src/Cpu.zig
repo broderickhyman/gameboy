@@ -151,6 +151,11 @@ pub fn readMemory(self: *Self, address: u16) u8 {
     }
     breakOnAddress(address);
 
+    // Joypad
+    if (address == 0xFF00) {
+        return 0xFF;
+    }
+
     return self.getMemoryPointer(address).*;
 }
 
@@ -166,7 +171,7 @@ pub fn writeMemory(self: *Self, address: u16, value: u8) void {
 pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
     if (address == 0xFF46) {
         // OAM DMA
-        @breakpoint();
+        // @breakpoint();
     }
     breakOnAddress(address);
     return &self.memory[address];
@@ -275,7 +280,7 @@ fn nop_vd(_: *Self, _: u8) u8 {
 }
 
 fn dma(self: *Self, address_index: u8) void {
-    @breakpoint();
+    // @breakpoint();
     self.print("DMA: Index: {x}\n", .{address_index});
     const source_start: u16 = @as(u16, address_index) << 8;
     // var i: usize = 0;
