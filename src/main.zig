@@ -1,14 +1,12 @@
 const std = @import("std");
-const Cpu = @import("Cpu.zig");
-const Ppu = @import("PPU.zig");
+const Cpu = @import("cpu/Cpu.zig");
+const Ppu = @import("display/PPU.zig");
 const SDL = @import("sdl2");
+const Memory = @import("memory/Memory.zig");
 
 // ./zig-out/bin/gameboy 2 | ../gameboy-doctor/gameboy-doctor - cpu_instrs 2
 
 pub fn main() !void {
-    var buffer: [0xFFFF + 1]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buffer);
-    const fba_allocator = fba.allocator();
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa_allocator = gpa.allocator();
 
@@ -95,38 +93,35 @@ pub fn main() !void {
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
-    const main_memory = try fba_allocator.alloc(u8, 0xFFFF + 1);
-    defer fba_allocator.free(main_memory);
-    @memset(main_memory, 0);
-    const length_read = try file.readAll(main_memory);
-    _ = length_read;
-    // std.debug.print("{X:4}\n", .{length_read});
+    // 8 MiB max rom size
+    const file_data = try file.readToEndAlloc(gpa_allocator, 0x800000);
+    defer gpa_allocator.free(file_data);
 
-    const title = main_memory[0x0134..0x0143];
+    const title = file_data[0x0134..0x0143];
     std.debug.print("Title: {s}\n", .{title});
-    const cartridge = main_memory[0x0147];
+    const cartridge = file_data[0x0147];
     std.debug.print("Cartridge: {X:02}\n", .{cartridge});
-    const rom_size: u16 = @as(u16, 32) * (@as(u16, 1) << @as(u4, @truncate(main_memory[0x0148])));
+    const rom_size: u16 = @as(u16, 32) * (@as(u16, 1) << @as(u4, @truncate(file_data[0x0148])));
     std.debug.print("ROM Size: {d} KiB\n", .{rom_size});
-    const ram_code = main_memory[0x0149];
+    const ram_code = file_data[0x0149];
     const ram_size: u8 = switch (ram_code) {
         0 => 0,
         2 => 8,
         3 => 32,
         4 => 128,
         5 => 64,
-        else => std.debug.panic("Unknown Cartridge", .{}),
+        else => std.debug.panic("Unknown RAM", .{}),
     };
     std.debug.print("RAM Size: {d} KiB\n", .{ram_size});
 
-    switch (cartridge) {
-        0 => {}, // ROM only
-        else => std.debug.panic("Unknown Cartridge", .{}),
-    }
+    // switch (cartridge) {
+    //     0 => {}, // ROM only
+    //     else => std.debug.panic("Unknown Cartridge", .{}),
+    // }
 
     // var mem_index: usize = 0;
     // while (mem_index < 0x100) : (mem_index += 1) {
-    //     std.debug.print("{X:2}\n", .{main_memory[0xC300 + mem_index]});
+    //     std.debug.print("{X:2}\n", .{file_data[0xC300 + mem_index]});
     // }
     // @breakpoint();
 
@@ -140,7 +135,11 @@ pub fn main() !void {
         log_out = log_file.writer();
     }
 
-    const cpu = try Cpu.create(&gpa_allocator, main_memory, start_pc, std_out, log_out);
+    const memory = try Memory.create(&gpa_allocator);
+    memory.rom_1.load(file_data[0..0x3FFF]);
+    memory.rom_2.load(file_data[0x4000..0x7FFF]);
+
+    const cpu = try Cpu.create(&gpa_allocator, memory, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
 
     cpu.should_print = should_print;
@@ -202,21 +201,22 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
     mainLoop: while (true) {
         const start = SDL.getPerformanceCounter();
-        cpu.joypad.reset();
+        const joypad = cpu.memory.joypad;
+        joypad.reset();
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
                 .quit => break :mainLoop,
                 .key_up => |key_event| {
                     switch (key_event.keycode) {
                         SDL.Keycode.escape => break :mainLoop,
-                        SDL.Keycode.@"return" => cpu.joypad.start = 0,
-                        SDL.Keycode.right_shift => cpu.joypad.select = 0,
-                        SDL.Keycode.s => cpu.joypad.a = 0,
-                        SDL.Keycode.a => cpu.joypad.b = 0,
-                        SDL.Keycode.up => cpu.joypad.up = 0,
-                        SDL.Keycode.down => cpu.joypad.down = 0,
-                        SDL.Keycode.left => cpu.joypad.left = 0,
-                        SDL.Keycode.right => cpu.joypad.right = 0,
+                        SDL.Keycode.@"return" => joypad.start = 0,
+                        SDL.Keycode.right_shift => joypad.select = 0,
+                        SDL.Keycode.s => joypad.a = 0,
+                        SDL.Keycode.a => joypad.b = 0,
+                        SDL.Keycode.up => joypad.up = 0,
+                        SDL.Keycode.down => joypad.down = 0,
+                        SDL.Keycode.left => joypad.left = 0,
+                        SDL.Keycode.right => joypad.right = 0,
                         else => {},
                     }
                 },
@@ -231,7 +231,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
             var dots: u32 = 0;
             while (dots < 70224) {
                 const current_dots = try runCpu(cpu);
-                if (file_num == 0 and cpu.memory[0xFF50] > 0) {
+                if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
                     std.debug.print("Disable Boot ROM\n", .{});
                     // @breakpoint();
                     run_cpu = false;
@@ -294,32 +294,34 @@ fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, tile_x: i16, 
 fn runGameboyDoctor(cpu: *Cpu) !void {
     try cpu.logState();
     while (true) {
+        // 144 = VBlank
+        cpu.memory.write(0xFF44, 144);
         if (cpu.counter % 100000 == 0) {
-            // std.debug.print("Counter: {d}\n", .{cpu.counter});
+            std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
         if (cpu.debug and cpu.counter > 151000) {
             // cpu.should_print = true;
         }
         _ = try runCpu(cpu);
+        if (!cpu.halted) {
+            try cpu.logState();
+        }
     }
 }
 
 fn runCpu(cpu: *Cpu) !u8 {
     const dots = cpu.cycle();
-    if (!cpu.halted) {
-        try cpu.logState();
-    }
-    const serial_control = cpu.memory[0xFF02];
+    const serial_control = cpu.memory.read(0xFF02);
     const serial_enabled = serial_control >> 7 & 1 == 1;
     if (cpu.is_doctor_test and serial_enabled) {
         // std.debug.print("Serial: {b}\n", .{serial_control});
-        const serial_value = cpu.memory[0xFF01];
+        const serial_value = cpu.memory.read(0xFF01);
         if (serial_value > 0) {
             std.debug.print("{c}", .{serial_value});
-            cpu.memory[0xFF01] = 0;
+            cpu.memory.write(0xFF01, 0);
         }
-        // cpu.memory[0xFF02] = (~(@as(u8, 1) << 7)) & serial_control;
-        // std.debug.print("Serial: {b}\n", .{cpu.memory[0xFF02]});
+        // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
+        // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
     cpu.handleTimer(dots);
     const interrupt_dots = cpu.handleInterrupts();
@@ -330,8 +332,8 @@ fn runCpu(cpu: *Cpu) !u8 {
 fn fakeCartridge(cpu: *Cpu) void {
     var logo_index: u16 = 0;
     while (logo_index < 0x30) : (logo_index += 1) {
-        cpu.memory[0x104 + logo_index] = cpu.memory[0xA8 + logo_index];
+        cpu.memory.write(0x104 + logo_index, cpu.memory.read(0xA8 + logo_index));
     }
     // Checksum
-    cpu.memory[0x14D] = 0xE7;
+    cpu.memory.write(0x14D, 0xE7);
 }

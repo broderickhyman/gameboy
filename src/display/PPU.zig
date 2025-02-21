@@ -1,8 +1,8 @@
 const std = @import("std");
 const Self = @This();
-const Cpu = @import("Cpu.zig");
+const Cpu = @import("../cpu/Cpu.zig");
 const SDL = @import("sdl2");
-const utils = @import("utils.zig");
+const utils = @import("../utils.zig");
 
 line_progress: u32,
 cpu: *Cpu,
@@ -24,18 +24,19 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
     const ppu = try allocator.create(Self);
     const bg_pixels = try allocator.alloc(Pixel, 160);
     const obj_pixels = try allocator.alloc(Pixel, 160);
+    const io_memory = cpu.memory.io;
     ppu.* = .{
         .cpu = cpu,
         .renderer = renderer,
         .line_progress = 0,
-        .stat_ptr = cpu.getMemoryPointer(0xFF41),
-        .ly_ptr = cpu.getMemoryPointer(0xFF44),
-        .lyc_ptr = cpu.getMemoryPointer(0xFF45),
+        .stat_ptr = io_memory.getMemoryPointer(0xFF41),
+        .ly_ptr = io_memory.getMemoryPointer(0xFF44),
+        .lyc_ptr = io_memory.getMemoryPointer(0xFF45),
         .current_mode = 2,
-        .lcdc_ptr = cpu.getMemoryPointer(0xFF40),
-        .bg_color_ptr = cpu.getMemoryPointer(0xFF47),
-        .obj0_color_ptr = cpu.getMemoryPointer(0xFF48),
-        .obj1_color_ptr = cpu.getMemoryPointer(0xFF49),
+        .lcdc_ptr = io_memory.getMemoryPointer(0xFF40),
+        .bg_color_ptr = io_memory.getMemoryPointer(0xFF47),
+        .obj0_color_ptr = io_memory.getMemoryPointer(0xFF48),
+        .obj1_color_ptr = io_memory.getMemoryPointer(0xFF49),
         .window_triggered = false,
         .window_index = 0,
         .bg_pixels = bg_pixels,
@@ -91,7 +92,7 @@ pub fn render(self: *Self, dots: u32) !void {
 fn newLine(self: *Self) void {
     const result = @addWithOverflow(self.ly_ptr.*, 1);
     self.ly_ptr.* = result[0];
-    const wy = self.cpu.memory[0xFF4A];
+    const wy = self.cpu.memory.read(0xFF4A);
     if (self.ly_ptr.* == wy) {
         self.window_triggered = true;
     }
@@ -149,9 +150,9 @@ fn renderLine(self: *Self) !void {
     const current_line: u10 = self.ly_ptr.*;
 
     const bg_window_enabled = self.getLcdcValue(0);
-    const scy = self.cpu.memory[0xFF42];
-    const scx = self.cpu.memory[0xFF43];
-    const wx = self.cpu.memory[0xFF4B];
+    const scy = self.cpu.memory.read(0xFF42);
+    const scx = self.cpu.memory.read(0xFF43);
+    const wx = self.cpu.memory.read(0xFF4B);
     const fetcher_y = (current_line + scy) & 255;
     const window_enabled = self.getLcdcValue(5);
     var window_rendered = false;
@@ -177,7 +178,7 @@ fn renderLine(self: *Self) !void {
 
         const tile_map_y = adjusted_y / 8;
         const tile_index_address: u16 = background_tile_address + (@as(u16, tile_map_y) * 32) + fetcher_x;
-        const tile_map_index = self.cpu.memory[tile_index_address];
+        const tile_map_index = self.cpu.memory.read(tile_index_address);
         var tile_address: u16 = undefined;
         if (address_mode_8000) {
             tile_address = @as(u16, 0x8000) + (@as(u16, tile_map_index) * 16);
@@ -187,8 +188,8 @@ fn renderLine(self: *Self) !void {
         }
         const inner_y = adjusted_y % 8;
         const tile_row_address = tile_address + (inner_y * 2);
-        const tile_low = self.cpu.memory[tile_row_address];
-        const tile_high = self.cpu.memory[tile_row_address + 1];
+        const tile_low = self.cpu.memory.read(tile_row_address);
+        const tile_high = self.cpu.memory.read(tile_row_address + 1);
         var byte_index: u4 = 0;
         while (byte_index < 8) : (byte_index += 1) {
             const shift: u3 = @truncate(7 - byte_index);
@@ -220,17 +221,17 @@ fn renderLine(self: *Self) !void {
         var found: u8 = 0;
         while (object_map_index < 40 and found <= 9) : (object_map_index += 1) {
             const oam_address: u16 = @as(u16, 0xFE00) + object_map_index * 4;
-            const obj_y: u10 = self.cpu.memory[oam_address];
+            const obj_y: u10 = self.cpu.memory.read(oam_address);
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
-                const obj_attributes = self.cpu.memory[oam_address + 3];
+                const obj_attributes = self.cpu.memory.read(oam_address + 3);
                 const priority = (obj_attributes >> 7) & 1 == 1;
-                const obj_x = self.cpu.memory[oam_address + 1];
+                const obj_x = self.cpu.memory.read(oam_address + 1);
                 const obj_inner_y = (current_line + 16) - obj_y;
                 var tile_inner_y = obj_inner_y % 8;
                 const y_flip = (obj_attributes >> 6) & 1 == 1;
-                const obj_tile_index: u16 = self.cpu.memory[oam_address + 2];
+                const obj_tile_index: u16 = self.cpu.memory.read(oam_address + 2);
                 var tile_address: u16 = 0x8000;
                 if (object_height == 8) {
                     tile_address += obj_tile_index * 16;
@@ -254,8 +255,8 @@ fn renderLine(self: *Self) !void {
                     palette_ptr = self.obj0_color_ptr;
                 }
                 const tile_row_address = tile_address + (tile_inner_y * 2);
-                const tile_low = self.cpu.memory[tile_row_address];
-                const tile_high = self.cpu.memory[tile_row_address + 1];
+                const tile_low = self.cpu.memory.read(tile_row_address);
+                const tile_high = self.cpu.memory.read(tile_row_address + 1);
                 var byte_index: u4 = 0;
                 while (byte_index < 8) : (byte_index += 1) {
                     var pixel = &self.obj_pixels[obj_x - 8 + byte_index];
