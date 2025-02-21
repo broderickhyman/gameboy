@@ -167,14 +167,22 @@ pub fn readMemory(self: *Self, address: u16) u8 {
 
 pub fn writeMemory(self: *Self, address: u16, value: u8) void {
     self.memory[address] = value;
-    if (address == 0xFF46) {
-        // OAM DMA
-        self.dma(value);
-        return;
-    }
-    if (address == 0xFF00) {
-        self.joypad.write(value);
-        return;
+    switch (address) {
+        0xFF46 => {
+            // OAM DMA
+            self.dma(value);
+            return;
+        },
+        0xFF00 => {
+            self.joypad.write(value);
+            return;
+        },
+        0xFF04 => {
+            // DIV
+            self.memory[0xFF04] = 0;
+            return;
+        },
+        else => {},
     }
     breakOnAddress(address);
 }

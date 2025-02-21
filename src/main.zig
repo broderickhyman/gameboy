@@ -68,6 +68,7 @@ pub fn main() !void {
         18 => "../roms/red.gb",
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
+        21 => "../roms/alleyway.gb",
         else => "",
     };
     var paths: [2][]const u8 = undefined;
@@ -85,6 +86,8 @@ pub fn main() !void {
         if (file_num < 17) {
             is_doctor_test = true;
             should_print = !debug and !display;
+        } else {
+            display = true;
         }
     }
     paths[1] = file_name;

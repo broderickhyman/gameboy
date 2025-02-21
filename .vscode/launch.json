@@ -34,6 +34,15 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Alleyway",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["21", "--display"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Mario",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["20", "--display"],
@@ -70,9 +79,9 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Regular No Display",
+      "name": "Acid",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["2"],
+      "args": ["17"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     }
