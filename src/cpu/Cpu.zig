@@ -118,7 +118,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
         self.div_counter -= 64;
         const div_value = self.memory.read(0xFF04);
         const div_result = @addWithOverflow(div_value, 1);
-        self.memory.write(0xFF04, div_result[0]);
+        self.memory.io.write(0xFF04, div_result[0]);
     }
     const tac = self.memory.read(0xFF07);
     const enabled = (tac >> 2) & 0b1;

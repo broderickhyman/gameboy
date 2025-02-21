@@ -202,13 +202,11 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
     mainLoop: while (true) {
         const start = SDL.getPerformanceCounter();
         const joypad = cpu.memory.joypad;
-        joypad.reset();
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
                 .quit => break :mainLoop,
-                .key_up => |key_event| {
-                    switch (key_event.keycode) {
-                        SDL.Keycode.escape => break :mainLoop,
+                .key_down => |key_down| {
+                    switch (key_down.keycode) {
                         SDL.Keycode.@"return" => joypad.start = 0,
                         SDL.Keycode.right_shift => joypad.select = 0,
                         SDL.Keycode.s => joypad.a = 0,
@@ -217,6 +215,20 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
                         SDL.Keycode.down => joypad.down = 0,
                         SDL.Keycode.left => joypad.left = 0,
                         SDL.Keycode.right => joypad.right = 0,
+                        else => {},
+                    }
+                },
+                .key_up => |key_up| {
+                    switch (key_up.keycode) {
+                        SDL.Keycode.escape => break :mainLoop,
+                        SDL.Keycode.@"return" => joypad.start = 1,
+                        SDL.Keycode.right_shift => joypad.select = 1,
+                        SDL.Keycode.s => joypad.a = 1,
+                        SDL.Keycode.a => joypad.b = 1,
+                        SDL.Keycode.up => joypad.up = 1,
+                        SDL.Keycode.down => joypad.down = 1,
+                        SDL.Keycode.left => joypad.left = 1,
+                        SDL.Keycode.right => joypad.right = 1,
                         else => {},
                     }
                 },

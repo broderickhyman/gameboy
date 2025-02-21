@@ -117,7 +117,7 @@ fn debugWrite(self: *Self, address: u16, value: u8) void {
 }
 
 fn dma(self: *Self, address_index: u8) void {
-    @breakpoint();
+    // @breakpoint();
     // std.debug.print("DMA: Index: {x}\n", .{address_index});
     const source_start: u16 = @as(u16, address_index) << 8;
     const destination_start: u16 = 0xFE00;
