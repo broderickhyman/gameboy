@@ -168,12 +168,22 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
 
     mainLoop: while (true) {
         const start = SDL.getPerformanceCounter();
+        cpu.joypad.reset();
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
                 .quit => break :mainLoop,
                 .key_up => |key_event| {
-                    if (key_event.keycode == SDL.Keycode.escape) {
-                        break :mainLoop;
+                    switch (key_event.keycode) {
+                        SDL.Keycode.escape => break :mainLoop,
+                        SDL.Keycode.@"return" => cpu.joypad.start = 0,
+                        SDL.Keycode.right_shift => cpu.joypad.select = 0,
+                        SDL.Keycode.s => cpu.joypad.a = 0,
+                        SDL.Keycode.a => cpu.joypad.b = 0,
+                        SDL.Keycode.up => cpu.joypad.up = 0,
+                        SDL.Keycode.down => cpu.joypad.down = 0,
+                        SDL.Keycode.left => cpu.joypad.left = 0,
+                        SDL.Keycode.right => cpu.joypad.right = 0,
+                        else => {},
                     }
                 },
                 else => {},

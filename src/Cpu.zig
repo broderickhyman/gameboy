@@ -1,6 +1,7 @@
 const std = @import("std");
 const Self = @This();
 const utils = @import("utils.zig");
+const JoyPad = @import("Joypad.zig");
 
 memory: []u8,
 pc: u16,
@@ -16,6 +17,7 @@ extra_dots: u8,
 extra_timer_cycles: u10,
 div_counter: u10,
 halted: bool,
+joypad: *JoyPad,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
@@ -25,6 +27,7 @@ pub fn create(
     log_out: ?std.fs.File.Writer,
 ) !*Self {
     const cpu = try allocator.create(Self);
+    const joypad = try JoyPad.create(allocator);
 
     cpu.* = .{
         .memory = main_memory,
@@ -41,6 +44,7 @@ pub fn create(
         .extra_timer_cycles = 0,
         .div_counter = 0,
         .halted = false,
+        .joypad = joypad,
     };
     return cpu;
 }
@@ -149,12 +153,12 @@ pub fn readMemory(self: *Self, address: u16) u8 {
             return 0x90; // 144 = VBlank
         }
     }
-    breakOnAddress(address);
 
-    // Joypad
     if (address == 0xFF00) {
-        return 0xFF;
+        return self.joypad.read();
     }
+
+    breakOnAddress(address);
 
     return self.getMemoryPointer(address).*;
 }
@@ -164,6 +168,11 @@ pub fn writeMemory(self: *Self, address: u16, value: u8) void {
     if (address == 0xFF46) {
         // OAM DMA
         self.dma(value);
+        return;
+    }
+    if (address == 0xFF00) {
+        self.joypad.write(value);
+        return;
     }
     breakOnAddress(address);
 }
@@ -178,9 +187,9 @@ pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
 }
 
 fn breakOnAddress(address: u16) void {
-    if (address > 0xC300 and address < 0xC400) {
+    if (address == 0xFF00) {
         // std.debug.print("{X}\n", .{address});
-        // @breakpoint();
+        @breakpoint();
         // std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
     }
 }
@@ -382,14 +391,15 @@ fn ld_a_de(self: *Self, _: u8) u8 {
 
 fn ld_hli_a(self: *Self, _: u8) u8 {
     self.print("LD (HL+),A\n", .{});
-    self.getMemoryPointer(hl.full).* = a_reg.*;
+    self.writeMemory(hl.full, a_reg.*);
+    // hl.full = @addWithOverflow(hl.full, 1)[0];
     hl.full += 1;
     return 8;
 }
 
 fn ld_hld_a(self: *Self, _: u8) u8 {
     self.print("LD (HL-),A\n", .{});
-    self.getMemoryPointer(hl.full).* = a_reg.*;
+    self.writeMemory(hl.full, a_reg.*);
     hl.full -= 1;
     return 8;
 }
