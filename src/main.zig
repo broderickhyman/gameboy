@@ -24,6 +24,7 @@ pub fn main() !void {
     var args_index: u3 = 1;
     var is_doctor_test = false;
     var display = false;
+    var output_memory = false;
     while (args_index < args.len) : (args_index += 1) {
         const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
@@ -36,6 +37,8 @@ pub fn main() !void {
             should_print = false;
         } else if (std.mem.eql(u8, arg, "--log")) {
             log_enabled = true;
+        } else if (std.mem.eql(u8, arg, "--mem")) {
+            output_memory = true;
         } else {
             file_num = try std.fmt.parseInt(u8, arg, 10);
         }
@@ -56,13 +59,13 @@ pub fn main() !void {
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // Passed
-        12 => "../roms/dmg-acid2.gb", // Passed
-        13 => "../roms/red.gb",
-        14 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
-        15 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
-        16 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
-        17 => "../gb-test-roms/mem_timing/mem_timing.gb",
-        18 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
+        12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
+        13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
+        14 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
+        15 => "../gb-test-roms/mem_timing/mem_timing.gb",
+        16 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
+        17 => "../roms/dmg-acid2.gb", // Passed
+        18 => "../roms/red.gb",
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
         else => "",
@@ -72,12 +75,17 @@ pub fn main() !void {
     if (file_num == 0) {
         paths[0] = "roms/";
         start_pc = 0;
-    } else if (file_num > 11) {
-        paths[0] = "";
-    } else {
-        is_doctor_test = !display;
+    } else if (file_num <= 11) {
+        output_memory = true;
+        is_doctor_test = true;
         should_print = !debug and !display;
         paths[0] = "../gb-test-roms/cpu_instrs/individual/";
+    } else {
+        paths[0] = "";
+        if (file_num < 17) {
+            is_doctor_test = true;
+            should_print = !debug and !display;
+        }
     }
     paths[1] = file_name;
     const path = try std.fs.path.join(gpa_allocator, &paths);
@@ -90,6 +98,28 @@ pub fn main() !void {
     const length_read = try file.readAll(main_memory);
     _ = length_read;
     // std.debug.print("{X:4}\n", .{length_read});
+
+    const title = main_memory[0x0134..0x0143];
+    std.debug.print("Title: {s}\n", .{title});
+    const cartridge = main_memory[0x0147];
+    std.debug.print("Cartridge: {X:02}\n", .{cartridge});
+    const rom_size: u16 = @as(u16, 32) * (@as(u16, 1) << @as(u4, @truncate(main_memory[0x0148])));
+    std.debug.print("ROM Size: {d} KiB\n", .{rom_size});
+    const ram_code = main_memory[0x0149];
+    const ram_size: u8 = switch (ram_code) {
+        0 => 0,
+        2 => 8,
+        3 => 32,
+        4 => 128,
+        5 => 64,
+        else => std.debug.panic("Unknown Cartridge", .{}),
+    };
+    std.debug.print("RAM Size: {d} KiB\n", .{ram_size});
+
+    switch (cartridge) {
+        0 => {}, // ROM only
+        else => std.debug.panic("Unknown Cartridge", .{}),
+    }
 
     // var mem_index: usize = 0;
     // while (mem_index < 0x100) : (mem_index += 1) {
@@ -114,11 +144,12 @@ pub fn main() !void {
     cpu.debug = debug;
     cpu.verbose = verbose;
     cpu.is_doctor_test = is_doctor_test;
+    cpu.output_memory = output_memory;
 
     if (file_num == 0) {
         fakeCartridge(cpu);
     }
-    if (!is_doctor_test) {
+    if (display) {
         try runDisplay(cpu, file_num, &gpa_allocator);
     } else {
         try runGameboyDoctor(cpu);
@@ -261,7 +292,7 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
     try cpu.logState();
     while (true) {
         if (cpu.counter % 100000 == 0) {
-            std.debug.print("Counter: {d}\n", .{cpu.counter});
+            // std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
         if (cpu.debug and cpu.counter > 151000) {
             // cpu.should_print = true;

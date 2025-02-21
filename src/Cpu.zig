@@ -9,6 +9,7 @@ counter: u32,
 debug: bool,
 verbose: bool,
 should_print: bool,
+output_memory: bool,
 std_out: std.fs.File.Writer,
 log_out: ?std.fs.File.Writer,
 is_doctor_test: bool,
@@ -34,6 +35,7 @@ pub fn create(
         .pc = start_pc,
         .counter = 1,
         .should_print = false,
+        .output_memory = false,
         .debug = false,
         .verbose = false,
         .std_out = std_out,
@@ -116,14 +118,14 @@ pub fn handleTimer(self: *Self, dots: u8) void {
     self.div_counter += cycles;
     if (self.div_counter > 64) {
         self.div_counter -= 64;
-        const div_pointer = self.getMemoryPointer(0xFF04);
+        const div_pointer = &self.memory[0xFF04];
         const div_result = @addWithOverflow(div_pointer.*, 1);
         div_pointer.* = div_result[0];
     }
     const tac = self.readMemory(0xFF07);
     const enabled = (tac >> 2) & 0b1;
     if (enabled == 1) {
-        const timer_pointer = self.getMemoryPointer(0xFF05);
+        const timer_pointer = &self.memory[0xFF05];
         const clock_select: u10 = switch (tac & 0x11) {
             1 => 4,
             2 => 16,
@@ -187,9 +189,14 @@ pub fn getMemoryPointer(self: *Self, address: u16) *u8 {
 }
 
 fn breakOnAddress(address: u16) void {
+    switch (address) {
+        0xFF00 => @breakpoint(),
+        0xFF04 => @breakpoint(),
+        else => {},
+    }
     if (address == 0xFF00) {
         // std.debug.print("{X}\n", .{address});
-        @breakpoint();
+        // @breakpoint();
         // std.debug.print("{X:02} - Pointer\n", .{self.memory[address]});
     }
 }
@@ -222,7 +229,7 @@ pub fn printFlags(self: *Self) void {
 }
 
 pub fn logState(self: *Self) !void {
-    if (!self.should_print) {
+    if (!self.output_memory) {
         return;
     }
     try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
