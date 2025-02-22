@@ -22,6 +22,7 @@ pub const Mapper = enum {
     None,
     MBC1,
     MBC2,
+    MBC3,
 };
 
 pub fn getMapperName(mapper: Mapper) []const u8 {

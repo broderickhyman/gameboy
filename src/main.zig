@@ -59,7 +59,7 @@ pub fn main() !void {
         9 => "09-op r,r.gb", // Passed
         10 => "10-bit ops.gb", // Passed
         11 => "11-op a,(hl).gb", // Passed
-        12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
+        12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb", // Passed
         13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
         14 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
         15 => "../gb-test-roms/mem_timing/mem_timing.gb",
@@ -105,15 +105,20 @@ pub fn main() !void {
     var mapper = Mapper.None;
     var ram = false;
     switch (cartridge) {
-        0 => {}, // ROM only
-        1 => mapper = Mapper.MBC1,
-        2 => {
+        0x0 => {}, // ROM only
+        0x1 => mapper = Mapper.MBC1,
+        0x2 => {
             mapper = Mapper.MBC1;
             ram = true;
         },
-        3 => {
+        0x3 => {
             // Also battery
             mapper = Mapper.MBC1;
+            ram = true;
+        },
+        0x13 => {
+            // Also battery
+            mapper = Mapper.MBC3;
             ram = true;
         },
         else => std.debug.panic("Unknown Cartridge", .{}),
@@ -145,7 +150,7 @@ pub fn main() !void {
         log_out = log_file.writer();
     }
 
-    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size);
+    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size, mapper);
 
     const cpu = try Cpu.create(&gpa_allocator, memory, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);

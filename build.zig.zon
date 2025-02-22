@@ -55,6 +55,10 @@
         .sdl = .{
             .path = "../SDL.zig/",
         },
+        .zdt = .{
+            .url = "https://github.com/FObersteiner/zdt/archive/refs/tags/v0.4.5.tar.gz",
+            .hash = "1220770d2ef9e42764b080adc3024cc7833c8d5e9e025e7f1241b7d53b0a905589c6",
+        },
     },
 
     // Specifies the set of files and directories that are included in this package.

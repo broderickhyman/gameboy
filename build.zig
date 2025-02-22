@@ -44,6 +44,13 @@ pub fn build(b: *std.Build) void {
     // Add "sdl2" package that exposes the SDL2 api (like SDL_Init or SDL_CreateWindow)
     exe.root_module.addImport("sdl2", sdk.getWrapperModule());
 
+    const zdt = b.dependency("zdt", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.root_module.addImport("zdt", zdt.module("zdt"));
+
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
     // step when running `zig build`).
