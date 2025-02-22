@@ -3,6 +3,8 @@ const Cpu = @import("cpu/Cpu.zig");
 const Ppu = @import("display/PPU.zig");
 const SDL = @import("sdl2");
 const Memory = @import("memory/Memory.zig");
+const Mapper = @import("utils.zig").Mapper;
+const utils = @import("utils.zig");
 
 // ./zig-out/bin/gameboy 2 | ../gameboy-doctor/gameboy-doctor - cpu_instrs 2
 
@@ -100,9 +102,28 @@ pub fn main() !void {
     const title = file_data[0x0134..0x0143];
     std.debug.print("Title: {s}\n", .{title});
     const cartridge = file_data[0x0147];
-    std.debug.print("Cartridge: {X:02}\n", .{cartridge});
-    const rom_size: u16 = @as(u16, 32) * (@as(u16, 1) << @as(u4, @truncate(file_data[0x0148])));
+    var mapper = Mapper.None;
+    var ram = false;
+    switch (cartridge) {
+        0 => {}, // ROM only
+        1 => mapper = Mapper.MBC1,
+        2 => {
+            mapper = Mapper.MBC1;
+            ram = true;
+        },
+        3 => {
+            // Also battery
+            mapper = Mapper.MBC1;
+            ram = true;
+        },
+        else => std.debug.panic("Unknown Cartridge", .{}),
+    }
+    std.debug.print("Cartridge: {s}, RAM: {d}\n", .{ utils.getMapperName(mapper), @intFromBool(ram) });
+    const rom_value: u4 = @truncate(file_data[0x0148]);
+    const bank_count = @as(u9, 1) << (rom_value + 1);
+    const rom_size: u16 = @as(u16, 32) * (@as(u16, 1) << rom_value);
     std.debug.print("ROM Size: {d} KiB\n", .{rom_size});
+    std.debug.print("ROM Banks: {d}\n", .{bank_count});
     const ram_code = file_data[0x0149];
     const ram_size: u8 = switch (ram_code) {
         0 => 0,
@@ -114,17 +135,6 @@ pub fn main() !void {
     };
     std.debug.print("RAM Size: {d} KiB\n", .{ram_size});
 
-    // switch (cartridge) {
-    //     0 => {}, // ROM only
-    //     else => std.debug.panic("Unknown Cartridge", .{}),
-    // }
-
-    // var mem_index: usize = 0;
-    // while (mem_index < 0x100) : (mem_index += 1) {
-    //     std.debug.print("{X:2}\n", .{file_data[0xC300 + mem_index]});
-    // }
-    // @breakpoint();
-
     var log_out: ?std.fs.File.Writer = null;
     if (log_enabled) {
         const log_file = try std.fs.cwd().createFile(
@@ -135,9 +145,7 @@ pub fn main() !void {
         log_out = log_file.writer();
     }
 
-    const memory = try Memory.create(&gpa_allocator);
-    memory.rom_1.load(file_data[0..0x3FFF]);
-    memory.rom_2.load(file_data[0x4000..0x7FFF]);
+    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size);
 
     const cpu = try Cpu.create(&gpa_allocator, memory, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);

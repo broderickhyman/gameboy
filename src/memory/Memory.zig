@@ -4,10 +4,12 @@ const RomBank = @import("RomBank.zig");
 const Ram = @import("Ram.zig");
 const JoyPad = @import("../io/Joypad.zig");
 
+rom_banks: []RomBank,
 rom_1: *RomBank,
 rom_2: *RomBank,
 vram: *Ram,
-external_ram: *Ram,
+external_ram_banks: []Ram,
+external_ram: ?*Ram,
 wram_1: *Ram,
 wram_2: *Ram,
 oam: *Ram,
@@ -16,13 +18,36 @@ hram: *Ram,
 ie: u8,
 joypad: *JoyPad,
 
-pub fn create(allocator: *const std.mem.Allocator) !*Self {
+pub fn create(
+    allocator: *const std.mem.Allocator,
+    file_data: []u8,
+    bank_count: u9,
+    ram_size: u8,
+) !*Self {
+    var rom_banks = std.ArrayList(RomBank).init(allocator.*);
+    var counter: u16 = 0;
+    while (counter < bank_count) : (counter += 1) {
+        const start = 0x4000 * counter;
+        const end = (0x4000 * (counter + 1)) - 1;
+        var new_rom = try RomBank.create(allocator, start, end);
+        new_rom.load(file_data[start..end]);
+        try rom_banks.append(new_rom.*);
+    }
+    var external_ram_banks = std.ArrayList(Ram).init(allocator.*);
+    counter = 0;
+    const ram_banks = ram_size / 8;
+    while (counter < ram_banks) : (counter += 1) {
+        const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
+        try external_ram_banks.append(new_ram.*);
+    }
     const mem = try allocator.create(Self);
     mem.* = .{
-        .rom_1 = try RomBank.create(allocator, 0, 0x3FFF),
-        .rom_2 = try RomBank.create(allocator, 0x4000, 0x7FFF),
+        .rom_banks = rom_banks.items,
+        .rom_1 = &rom_banks.items[0],
+        .rom_2 = &rom_banks.items[1],
         .vram = try Ram.create(allocator, 0x8000, 0x9FFF),
-        .external_ram = try Ram.create(allocator, 0xA000, 0xBFFF),
+        .external_ram_banks = external_ram_banks.items,
+        .external_ram = null,
         .wram_1 = try Ram.create(allocator, 0xC000, 0xCFFF),
         .wram_2 = try Ram.create(allocator, 0xD000, 0xDFFF),
         .oam = try Ram.create(allocator, 0xFE00, 0xFE9F),
@@ -31,6 +56,9 @@ pub fn create(allocator: *const std.mem.Allocator) !*Self {
         .ie = 0,
         .joypad = try JoyPad.create(allocator),
     };
+    if (external_ram_banks.items.len > 0) {
+        mem.*.external_ram = &external_ram_banks.items[0];
+    }
     return mem;
 }
 
@@ -53,7 +81,12 @@ fn read_int(self: *Self, address: u16) u8 {
         0...0x3FFF => self.rom_1.read(address),
         0x4000...0x7FFF => self.rom_2.read(address),
         0x8000...0x9FFF => self.vram.read(address),
-        0xA000...0xBFFF => self.external_ram.read(address),
+        0xA000...0xBFFF => {
+            if (self.external_ram) |external_ram| {
+                return external_ram.read(address);
+            }
+            return 0xFF;
+        },
         0xC000...0xCFFF => self.wram_1.read(address),
         0xD000...0xDFFF => self.wram_2.read(address),
         0xFE00...0xFE9F => self.oam.read(address),
@@ -86,7 +119,11 @@ pub fn write(self: *Self, address: u16, value: u8) void {
 
     switch (address) {
         0x8000...0x9FFF => self.vram.write(address, value),
-        0xA000...0xBFFF => self.external_ram.write(address, value),
+        0xA000...0xBFFF => {
+            if (self.external_ram) |external_ram| {
+                external_ram.write(address, value);
+            }
+        },
         0xC000...0xCFFF => self.wram_1.write(address, value),
         0xD000...0xDFFF => self.wram_2.write(address, value),
         0xFE00...0xFE9F => self.oam.write(address, value),
