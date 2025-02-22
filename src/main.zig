@@ -270,7 +270,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
         var end = SDL.getPerformanceCounter();
         var elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
         if (elapsed <= ideal_frame_time) {
-            SDL.delay(@intFromFloat(ideal_frame_time - elapsed));
+            // SDL.delay(@intFromFloat(ideal_frame_time - elapsed));
         }
         end = SDL.getPerformanceCounter();
         elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency()));
@@ -283,8 +283,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
         const texture = try SDL.createTextureFromSurface(renderer, surface);
         defer texture.destroy();
         const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = 20 };
-        _ = text_rect;
-        // try renderer.copy(texture, text_rect, null);
+        // _ = text_rect;
+        try renderer.copy(texture, text_rect, null);
         renderer.present();
     }
 }

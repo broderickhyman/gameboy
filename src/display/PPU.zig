@@ -73,6 +73,7 @@ pub fn render(self: *Self, dots: u32) !void {
                 self.cpu.requestInterrupt(0);
                 self.requestInterruptIfSelected(4);
             }
+            self.checkLy();
             continue;
         }
         if (self.current_mode == 1 and self.line_progress > 456) {
@@ -84,6 +85,7 @@ pub fn render(self: *Self, dots: u32) !void {
                 self.window_index = 0;
                 self.window_triggered = false;
             }
+            self.checkLy();
             continue;
         }
     }
@@ -92,17 +94,7 @@ pub fn render(self: *Self, dots: u32) !void {
 fn newLine(self: *Self) void {
     const result = @addWithOverflow(self.ly_ptr.*, 1);
     self.ly_ptr.* = result[0];
-    const wy = self.cpu.memory.read(0xFF4A);
-    if (self.ly_ptr.* == wy) {
-        self.window_triggered = true;
-    }
     self.line_progress = 1;
-    if (self.ly_ptr.* == self.lyc_ptr.*) {
-        utils.setBit(self.stat_ptr, 2);
-        self.requestInterruptIfSelected(6);
-    } else {
-        utils.resetBit(self.stat_ptr, 2);
-    }
     // std.debug.print("Y:{d:03} 7:{b} 6:{b} 5:{b} 4:{b} 3:{b} 2:{b} 1:{b} 0:{b}\n", .{
     //     self.ly_ptr.*,
     //     @intFromBool(self.getLcdcValue(7)),
@@ -114,6 +106,19 @@ fn newLine(self: *Self) void {
     //     @intFromBool(self.getLcdcValue(1)),
     //     @intFromBool(self.getLcdcValue(0)),
     // });
+}
+
+fn checkLy(self: *Self) void {
+    const wy = self.cpu.memory.read(0xFF4A);
+    if (self.ly_ptr.* == wy) {
+        self.window_triggered = true;
+    }
+    if (self.ly_ptr.* == self.lyc_ptr.*) {
+        utils.setBit(self.stat_ptr, 2);
+        self.requestInterruptIfSelected(6);
+    } else {
+        utils.resetBit(self.stat_ptr, 2);
+    }
 }
 
 fn requestInterruptIfSelected(self: *Self, select_num: u3) void {
@@ -259,7 +264,10 @@ fn renderLine(self: *Self) !void {
                 const tile_high = self.cpu.memory.read(tile_row_address + 1);
                 var byte_index: u4 = 0;
                 while (byte_index < 8) : (byte_index += 1) {
-                    var pixel = &self.obj_pixels[obj_x - 8 + byte_index];
+                    if (obj_x + byte_index < 8 or obj_x + byte_index - 8 >= 160) {
+                        continue;
+                    }
+                    var pixel = &self.obj_pixels[obj_x + byte_index - 8];
                     if (pixel.obj_x > 0 and pixel.obj_x < obj_x) {
                         // Lower X has priority
                         continue;
