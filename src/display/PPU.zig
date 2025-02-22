@@ -113,6 +113,9 @@ fn checkLy(self: *Self) void {
     if (self.ly_ptr.* == wy) {
         self.window_triggered = true;
     }
+    if (self.cpu.paused) {
+        return;
+    }
     if (self.ly_ptr.* == self.lyc_ptr.*) {
         utils.setBit(self.stat_ptr, 2);
         self.requestInterruptIfSelected(6);
@@ -122,6 +125,9 @@ fn checkLy(self: *Self) void {
 }
 
 fn requestInterruptIfSelected(self: *Self, select_num: u3) void {
+    if (self.cpu.paused) {
+        return;
+    }
     const selected = (self.stat_ptr.* >> select_num) & 0b1 == 1;
     if (selected) {
         self.cpu.requestInterrupt(1);
@@ -130,6 +136,9 @@ fn requestInterruptIfSelected(self: *Self, select_num: u3) void {
 
 fn setPpuMode(self: *Self, mode: u2) void {
     self.current_mode = mode;
+    if (self.cpu.paused) {
+        return;
+    }
     const mask = ~(@as(u8, 0b11));
     self.stat_ptr.* = (self.stat_ptr.* & mask) | mode;
 }

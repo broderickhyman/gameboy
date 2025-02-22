@@ -19,6 +19,7 @@ extra_dots: u8,
 extra_timer_cycles: u10,
 div_counter: u10,
 halted: bool,
+paused: bool,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
@@ -45,6 +46,7 @@ pub fn create(
         .extra_timer_cycles = 0,
         .div_counter = 0,
         .halted = false,
+        .paused = false,
     };
     return cpu;
 }
@@ -106,6 +108,9 @@ fn handleInterrupt(self: *Self, enabled: u8, flag: *u8, shift: u3, address: u16)
 }
 
 pub fn requestInterrupt(self: *Self, bit_num: u3) void {
+    if (self.paused) {
+        return;
+    }
     utils.setBit(self.memory.io.getMemoryPointer(0xFF0F), bit_num);
 }
 

@@ -25,15 +25,6 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Tetris Debug",
-      "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["19", "--display", "--debug", "--verbose"],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "build"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
       "name": "Alleyway",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["21", "--display"],
@@ -55,6 +46,15 @@
       "name": "Red",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["18", "--display"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Red Fast",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["18", "--display", "--fast"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },

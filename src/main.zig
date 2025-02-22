@@ -25,6 +25,7 @@ pub fn main() !void {
     var is_doctor_test = false;
     var display = false;
     var output_memory = false;
+    var fast = false;
     while (args_index < args.len) : (args_index += 1) {
         const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
@@ -39,6 +40,8 @@ pub fn main() !void {
             log_enabled = true;
         } else if (std.mem.eql(u8, arg, "--mem")) {
             output_memory = true;
+        } else if (std.mem.eql(u8, arg, "--fast")) {
+            fast = true;
         } else {
             file_num = try std.fmt.parseInt(u8, arg, 10);
         }
@@ -165,13 +168,13 @@ pub fn main() !void {
         fakeCartridge(cpu);
     }
     if (display) {
-        try runDisplay(cpu, file_num, &gpa_allocator);
+        try runDisplay(cpu, file_num, &gpa_allocator, fast);
     } else {
         try runGameboyDoctor(cpu);
     }
 }
 
-fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) !void {
+fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, fast: bool) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -242,6 +245,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
                         SDL.Keycode.down => joypad.down = 1,
                         SDL.Keycode.left => joypad.left = 1,
                         SDL.Keycode.right => joypad.right = 1,
+                        SDL.Keycode.p => cpu.paused = !cpu.paused,
                         else => {},
                     }
                 },
@@ -256,21 +260,29 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator) 
             var dots: u32 = 0;
             while (dots < 70224) {
                 const current_dots = try runCpu(cpu);
-                if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
-                    std.debug.print("Disable Boot ROM\n", .{});
-                    // @breakpoint();
-                    run_cpu = false;
-                }
                 try ppu.render(current_dots);
-
                 dots += current_dots;
             }
+            if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
+                std.debug.print("Disable Boot ROM\n", .{});
+                // @breakpoint();
+                run_cpu = false;
+            }
+        }
+
+        if (cpu.paused) {
+            const surface = try font.renderTextSolid("Paused", SDL.Color.red);
+            defer surface.destroy();
+            const texture = try SDL.createTextureFromSurface(renderer, surface);
+            defer texture.destroy();
+            const text_rect = SDL.Rectangle{ .x = 60, .y = 60, .height = 10, .width = 40 };
+            try renderer.copy(texture, text_rect, null);
         }
 
         var end = SDL.getPerformanceCounter();
         var elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
-        if (elapsed <= ideal_frame_time) {
-            // SDL.delay(@intFromFloat(ideal_frame_time - elapsed));
+        if ((!fast or cpu.paused) and elapsed <= ideal_frame_time) {
+            SDL.delay(@intFromFloat(ideal_frame_time - elapsed));
         }
         end = SDL.getPerformanceCounter();
         elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency()));
@@ -335,6 +347,9 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
 }
 
 fn runCpu(cpu: *Cpu) !u8 {
+    if (cpu.paused) {
+        return 4;
+    }
     const dots = cpu.cycle();
     const serial_control = cpu.memory.read(0xFF02);
     const serial_enabled = serial_control >> 7 & 1 == 1;
