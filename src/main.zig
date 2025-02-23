@@ -49,19 +49,19 @@ pub fn main() !void {
     if (verbose) {
         should_print = true;
     }
-    const file_name: []const u8 = switch (file_num) {
-        0 => "dmg_boot.bin",
-        1 => "01-special.gb", // Passed
-        2 => "02-interrupts.gb", // Passed using display, not cli
-        3 => "03-op sp,hl.gb", // Passed
-        4 => "04-op r,imm.gb", // Passed
-        5 => "05-op rp.gb", // Passed
-        6 => "06-ld r,r.gb", // Passed
-        7 => "07-jr,jp,call,ret,rst.gb", // Passed
-        8 => "08-misc instrs.gb", // Passed
-        9 => "09-op r,r.gb", // Passed
-        10 => "10-bit ops.gb", // Passed
-        11 => "11-op a,(hl).gb", // Passed
+    const path: []const u8 = switch (file_num) {
+        0 => "roms/dmg_boot.bin",
+        1 => "../gb-test-roms/cpu_instrs/individual/01-special.gb", // Passed
+        2 => "../gb-test-roms/cpu_instrs/individual/02-interrupts.gb", // Passed using display, not cli
+        3 => "../gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb", // Passed
+        4 => "../gb-test-roms/cpu_instrs/individual/04-op r,imm.gb", // Passed
+        5 => "../gb-test-roms/cpu_instrs/individual/05-op rp.gb", // Passed
+        6 => "../gb-test-roms/cpu_instrs/individual/06-ld r,r.gb", // Passed
+        7 => "../gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", // Passed
+        8 => "../gb-test-roms/cpu_instrs/individual/08-misc instrs.gb", // Passed
+        9 => "../gb-test-roms/cpu_instrs/individual/09-op r,r.gb", // Passed
+        10 => "../gb-test-roms/cpu_instrs/individual/10-bit ops.gb", // Passed
+        11 => "../gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb", // Passed
         12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb", // Passed
         13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
         14 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
@@ -74,18 +74,14 @@ pub fn main() !void {
         21 => "../roms/alleyway.gb",
         else => "",
     };
-    var paths: [2][]const u8 = undefined;
     var start_pc: u16 = 0x0100;
     if (file_num == 0) {
-        paths[0] = "roms/";
         start_pc = 0;
     } else if (file_num <= 11) {
         output_memory = true;
         is_doctor_test = true;
         should_print = !debug and !display;
-        paths[0] = "../gb-test-roms/cpu_instrs/individual/";
     } else {
-        paths[0] = "";
         if (file_num < 17) {
             is_doctor_test = true;
             should_print = !debug and !display;
@@ -93,8 +89,6 @@ pub fn main() !void {
             display = true;
         }
     }
-    paths[1] = file_name;
-    const path = try std.fs.path.join(gpa_allocator, &paths);
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
@@ -146,7 +140,7 @@ pub fn main() !void {
     var log_out: ?std.fs.File.Writer = null;
     if (log_enabled) {
         const log_file = try std.fs.cwd().createFile(
-            "output.log",
+            "output/output.log",
             .{},
         );
         // defer log_file.close();
@@ -257,8 +251,12 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, 
         try renderer.clear();
 
         if (run_cpu) {
+            var frameSkipping: u32 = 1;
+            if (fast) {
+                frameSkipping = 2;
+            }
             var dots: u32 = 0;
-            while (dots < 70224) {
+            while (dots < 70224 * frameSkipping) {
                 const current_dots = try runCpu(cpu);
                 try ppu.render(current_dots);
                 dots += current_dots;

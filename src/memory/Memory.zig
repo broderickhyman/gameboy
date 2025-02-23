@@ -150,6 +150,7 @@ pub fn write(self: *Self, address: u16, value: u8) void {
     // self.breakOnAddress(address);
     if (address <= 0x7FFF) {
         switch (self.mapper) {
+            Mapper.None => {},
             Mapper.MBC1 => mbc1_write(self, address, value),
             Mapper.MBC3 => mbc3_write(self, address, value),
             else => {
