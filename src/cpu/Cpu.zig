@@ -1,7 +1,7 @@
 const std = @import("std");
+const Endian = std.builtin.Endian;
 const Self = @This();
 const utils = @import("../utils.zig");
-
 const Memory = @import("../memory/Memory.zig");
 
 memory: *Memory,
@@ -158,9 +158,54 @@ fn read(self: *Self) u8 {
 }
 
 pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+    if (self.memory.external_ram_banks.len == 0) {
+        return;
+    }
     const file = try utils.openFileWrite(allocator, file_num, "ram.bin");
     defer file.close();
-    try self.memory.saveRam(file);
+    try self.memory.saveRam(&file.writer());
+}
+
+pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+    // self.paused = true;
+    const file = try utils.openFileWrite(allocator, file_num, "state.bin");
+    defer file.close();
+    const writer = file.writer();
+    try writer.writeInt(u16, af.af, Endian.big);
+    try writer.writeInt(u16, bc.full, Endian.big);
+    try writer.writeInt(u16, de.full, Endian.big);
+    try writer.writeInt(u16, hl.full, Endian.big);
+    try writer.writeInt(u16, sp, Endian.big);
+    try self.memory.saveState(&writer);
+    try writer.writeInt(u16, self.pc, Endian.big);
+    try writer.writeInt(u32, self.counter, Endian.big);
+    try writer.writeInt(u8, self.ime, Endian.big);
+    try writer.writeInt(u8, self.extra_dots, Endian.big);
+    try writer.writeInt(u16, self.extra_timer_cycles, Endian.big);
+    try writer.writeInt(u16, self.div_counter, Endian.big);
+    try writer.writeInt(u8, @intFromBool(self.halted), Endian.big);
+    try writer.writeInt(u8, @intFromBool(self.paused), Endian.big);
+}
+
+pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+    // self.paused = true;
+    const file = try utils.openFileRead(allocator, file_num, "state.bin");
+    defer file.close();
+    const reader = file.reader();
+    af.af = try reader.readInt(u16, Endian.big);
+    bc.full = try reader.readInt(u16, Endian.big);
+    de.full = try reader.readInt(u16, Endian.big);
+    hl.full = try reader.readInt(u16, Endian.big);
+    sp = try reader.readInt(u16, Endian.big);
+    try self.memory.loadState(&reader);
+    self.pc = try reader.readInt(u16, Endian.big);
+    self.counter = try reader.readInt(u32, Endian.big);
+    self.ime = @truncate(try reader.readInt(u8, Endian.big));
+    self.extra_dots = try reader.readInt(u8, Endian.big);
+    self.extra_timer_cycles = @truncate(try reader.readInt(u16, Endian.big));
+    self.div_counter = @truncate(try reader.readInt(u16, Endian.big));
+    self.halted = try reader.readInt(u8, Endian.big) == 1;
+    self.paused = try reader.readInt(u8, Endian.big) == 1;
 }
 
 fn printIndex(self: *Self) void {

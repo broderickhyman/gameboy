@@ -62,3 +62,17 @@ pub fn getFilePath(allocator: *const std.mem.Allocator, file_num: u8, file_name:
     const result = std.fs.path.join(allocator.*, &file_parts) catch unreachable;
     return result;
 }
+
+pub fn writeData(writer: *const std.fs.File.Writer, data: *const []u8) !void {
+    const bytes_written = try writer.write(data.*);
+    if (bytes_written != data.len) {
+        std.debug.panic("Did not write all bytes", .{});
+    }
+}
+
+pub fn readData(reader: *const std.fs.File.Reader, data: *const []u8) !void {
+    const bytes_read = try reader.read(data.*);
+    if (bytes_read != data.len) {
+        std.debug.panic("Did not read all bytes", .{});
+    }
+}

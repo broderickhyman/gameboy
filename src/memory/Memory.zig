@@ -1,4 +1,5 @@
 const std = @import("std");
+const Endian = std.builtin.Endian;
 const Self = @This();
 const RomBank = @import("RomBank.zig");
 const Ram = @import("Ram.zig");
@@ -16,6 +17,7 @@ vram: *Ram,
 external_ram_banks: []Ram,
 external_ram: ?*Ram,
 external_ram_enabled: bool,
+selected_external_ram: u2,
 wram_1: *Ram,
 wram_2: *Ram,
 oam: *Ram,
@@ -49,20 +51,17 @@ pub fn create(
     counter = 0;
     const ram_banks = ram_size / 8;
     if (ram_banks > 0) {
-        var file: ?std.fs.File = null;
+        var reader: ?std.fs.File.Reader = null;
         if (utils.openFileRead(allocator, file_num, "ram.bin")) |file_open| {
-            file = file_open;
+            reader = file_open.reader();
         } else |err| switch (err) {
             std.fs.File.OpenError.FileNotFound => {},
             else => return err,
         }
         while (counter < ram_banks) : (counter += 1) {
             const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
-            if (file) |optional| {
-                const size_read = try optional.read(new_ram.data);
-                if (size_read != new_ram.data.len) {
-                    std.debug.panic("Did not read enough RAM data", .{});
-                }
+            if (reader) |optional| {
+                try utils.readData(&optional, &new_ram.data);
             }
             try external_ram_banks.append(new_ram.*);
         }
@@ -78,6 +77,7 @@ pub fn create(
         .external_ram_banks = external_ram_banks.items,
         .external_ram = null,
         .external_ram_enabled = false,
+        .selected_external_ram = 0,
         .wram_1 = try Ram.create(allocator, 0xC000, 0xCFFF),
         .wram_2 = try Ram.create(allocator, 0xD000, 0xDFFF),
         .oam = try Ram.create(allocator, 0xFE00, 0xFE9F),
@@ -218,7 +218,8 @@ fn mbc1_write(self: *Self, address: u16, value: u8) void {
             }
             if (self.external_ram_banks.len == 4) {
                 const lower: u2 = @truncate(value);
-                self.external_ram = &self.external_ram_banks[lower];
+                self.selected_external_ram = lower;
+                self.updateSelectedRam();
             } else if (self.rom_banks.len >= 64) {
                 const upper = @as(u2, @truncate(value));
                 self.selected_rom = (self.selected_rom & 0b0011111) | upper;
@@ -275,6 +276,10 @@ fn updateSelectedRom(self: *Self) void {
     // }
 }
 
+fn updateSelectedRam(self: *Self) void {
+    self.external_ram = &self.external_ram_banks[self.selected_external_ram];
+}
+
 fn breakOnAddress(_: *Self, address: u16) void {
     switch (address) {
         // 0xFF00 => @breakpoint(),
@@ -304,11 +309,55 @@ fn dma(self: *Self, address_index: u8) void {
     }
 }
 
-pub fn saveRam(self: *Self, file: std.fs.File) !void {
+pub fn saveRam(self: *Self, writer: *const std.fs.File.Writer) !void {
     for (self.external_ram_banks) |external_ram_bank| {
-        const bytes_written = try file.write(external_ram_bank.data);
-        if (bytes_written != external_ram_bank.data.len) {
-            std.debug.panic("Did not write all of RAM", .{});
-        }
+        try utils.writeData(writer, &external_ram_bank.data);
     }
+}
+
+fn loadRam(self: *Self, reader: *const std.fs.File.Reader) !void {
+    for (self.external_ram_banks) |external_ram_bank| {
+        try utils.readData(reader, &external_ram_bank.data);
+    }
+}
+
+pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
+    try writer.writeInt(u8, self.selected_rom, Endian.big);
+    try utils.writeData(writer, &self.vram.data);
+    try self.saveRam(writer);
+    try writer.writeInt(u8, @intFromBool(self.external_ram_enabled), Endian.big);
+    try writer.writeInt(u8, self.selected_external_ram, Endian.big);
+    try utils.writeData(writer, &self.wram_1.data);
+    try utils.writeData(writer, &self.wram_2.data);
+    try utils.writeData(writer, &self.oam.data);
+    try utils.writeData(writer, &self.io.data);
+    try utils.writeData(writer, &self.hram.data);
+    try writer.writeInt(u8, self.ie, Endian.big);
+    try self.joypad.saveState(writer);
+    try writer.writeInt(u8, self.banking_mode, Endian.big);
+    try writer.writeInt(u8, self.rtc_register, Endian.big);
+    try writer.writeInt(u8, self.latch_last_write, Endian.big);
+    try writer.writeInt(i64, self.latched_time.unix_sec, Endian.big);
+}
+
+pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
+    self.selected_rom = @truncate(try reader.readInt(u8, Endian.big));
+    try utils.readData(reader, &self.vram.data);
+    try self.loadRam(reader);
+    self.external_ram_enabled = try reader.readInt(u8, Endian.big) == 1;
+    self.selected_external_ram = @truncate(try reader.readInt(u8, Endian.big));
+    try utils.readData(reader, &self.wram_1.data);
+    try utils.readData(reader, &self.wram_2.data);
+    try utils.readData(reader, &self.oam.data);
+    try utils.readData(reader, &self.io.data);
+    try utils.readData(reader, &self.hram.data);
+    self.ie = try reader.readInt(u8, Endian.big);
+    try self.joypad.loadState(reader);
+    self.banking_mode = @truncate(try reader.readInt(u8, Endian.big));
+    self.rtc_register = @truncate(try reader.readInt(u8, Endian.big));
+    self.latch_last_write = try reader.readInt(u8, Endian.big);
+    self.latched_time = try zdt.Datetime.fromUnix(try reader.readInt(i64, Endian.big), zdt.Duration.Resolution.second, null);
+
+    self.updateSelectedRom();
+    self.updateSelectedRam();
 }

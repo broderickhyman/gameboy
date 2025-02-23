@@ -59,3 +59,11 @@ pub fn reset(self: *Self) void {
     self.a = 1;
     self.right = 1;
 }
+
+pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
+    try writer.writeInt(u8, self.read(), std.builtin.Endian.big);
+}
+
+pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
+    self.write(try reader.readInt(u8, std.builtin.Endian.big));
+}

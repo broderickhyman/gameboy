@@ -241,6 +241,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                         SDL.Keycode.right => joypad.right = 1,
                         SDL.Keycode.p, SDL.Keycode.escape => cpu.paused = !cpu.paused,
                         SDL.Keycode.r => try cpu.saveRam(allocator, file_num),
+                        SDL.Keycode.u => try cpu.saveState(allocator, file_num),
+                        SDL.Keycode.l => try cpu.loadState(allocator, file_num),
                         else => {},
                     }
                 },
