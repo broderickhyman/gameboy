@@ -204,13 +204,15 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
 
     var run_cpu = true;
     const smoothing = 0.9;
-    const ideal_frame_time = 16.74;
+    const ideal_frame_time = 16740 * std.time.ns_per_us;
     var current_fps: f64 = 60.0;
     const fps_buf = try allocator.alloc(u8, 10);
     defer allocator.free(fps_buf);
+    var frame_counter: u64 = 0;
 
     mainLoop: while (true) {
-        const start = SDL.getPerformanceCounter();
+        frame_counter += 1;
+        const start = std.time.nanoTimestamp();
         const joypad = cpu.memory.joypad;
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
@@ -280,16 +282,6 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
             try renderer.copy(texture, text_rect, null);
         }
 
-        var end = SDL.getPerformanceCounter();
-        var elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency())) * 1000;
-        if ((!fast or cpu.paused) and elapsed <= ideal_frame_time) {
-            SDL.delay(@intFromFloat(ideal_frame_time - elapsed));
-        }
-        end = SDL.getPerformanceCounter();
-        elapsed = @as(f64, @floatFromInt(end - start)) / @as(f64, @floatFromInt(SDL.getPerformanceFrequency()));
-        const new_fps = 1 / elapsed;
-        current_fps = (current_fps * smoothing) + (new_fps * (1 - smoothing));
-
         const fps_str = try std.fmt.bufPrintZ(fps_buf, "{d:.1}", .{current_fps});
         const surface = try font.renderTextSolid(fps_str, SDL.Color.red);
         defer surface.destroy();
@@ -299,6 +291,22 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
         // _ = text_rect;
         try renderer.copy(texture, text_rect, null);
         renderer.present();
+
+        const end = std.time.nanoTimestamp();
+        var elapsed = end - start;
+        if (elapsed <= ideal_frame_time) {
+            const delay: u64 = @intCast(ideal_frame_time - elapsed);
+            // if (frame_counter % 10 == 0) {
+            //     std.debug.print("Delay: {d}\n", .{@divTrunc(delay, std.time.ns_per_ms)});
+            // }
+            elapsed += delay;
+            std.Thread.sleep(delay);
+        }
+        // if (frame_counter % 10 == 0) {
+        //     std.debug.print("Elapsed: {d}\n", .{@divTrunc(elapsed, std.time.ns_per_ms)});
+        // }
+        const new_fps = 1 / (@as(f64, @floatFromInt(elapsed)) / std.time.ns_per_s);
+        current_fps = (current_fps * smoothing) + (new_fps * (1 - smoothing));
     }
 }
 
