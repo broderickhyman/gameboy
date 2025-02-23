@@ -147,7 +147,7 @@ pub fn main() !void {
         log_out = log_file.writer();
     }
 
-    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size, mapper);
+    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size, mapper, file_num);
 
     const cpu = try Cpu.create(&gpa_allocator, memory, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
@@ -168,7 +168,7 @@ pub fn main() !void {
     }
 }
 
-fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, fast: bool) !void {
+fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast: bool) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -197,8 +197,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, 
     try renderer.setScale(new_scale, new_scale);
     try renderer.setDrawBlendMode(SDL.BlendMode.none);
 
-    const ppu = try Ppu.create(gpa_allocator, cpu, &renderer);
-    defer gpa_allocator.destroy(ppu);
+    const ppu = try Ppu.create(allocator, cpu, &renderer);
+    defer allocator.destroy(ppu);
 
     const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
 
@@ -206,8 +206,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, 
     const smoothing = 0.9;
     const ideal_frame_time = 16.74;
     var current_fps: f64 = 60.0;
-    const fps_buf = try gpa_allocator.alloc(u8, 10);
-    defer gpa_allocator.free(fps_buf);
+    const fps_buf = try allocator.alloc(u8, 10);
+    defer allocator.free(fps_buf);
 
     mainLoop: while (true) {
         const start = SDL.getPerformanceCounter();
@@ -230,7 +230,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, 
                 },
                 .key_up => |key_up| {
                     switch (key_up.keycode) {
-                        SDL.Keycode.escape => break :mainLoop,
+                        SDL.Keycode.q => break :mainLoop,
                         SDL.Keycode.@"return" => joypad.start = 1,
                         SDL.Keycode.right_shift => joypad.select = 1,
                         SDL.Keycode.s => joypad.a = 1,
@@ -239,7 +239,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, gpa_allocator: *const std.mem.Allocator, 
                         SDL.Keycode.down => joypad.down = 1,
                         SDL.Keycode.left => joypad.left = 1,
                         SDL.Keycode.right => joypad.right = 1,
-                        SDL.Keycode.p => cpu.paused = !cpu.paused,
+                        SDL.Keycode.p, SDL.Keycode.escape => cpu.paused = !cpu.paused,
+                        SDL.Keycode.r => try cpu.saveRam(allocator, file_num),
                         else => {},
                     }
                 },

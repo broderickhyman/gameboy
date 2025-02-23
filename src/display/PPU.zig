@@ -239,9 +239,14 @@ fn renderLine(self: *Self) !void {
             const obj_bottom = obj_y + object_height;
             if (obj_bottom > current_line + 16 and obj_y <= current_line + 16 and obj_y < 160) {
                 found += 1;
+                // Need u9 to handle the byte offset
+                const obj_x: u9 = self.cpu.memory.read(oam_address + 1);
+                if (obj_x == 0 or obj_x >= 168) {
+                    // Won't be displayed
+                    continue;
+                }
                 const obj_attributes = self.cpu.memory.read(oam_address + 3);
                 const priority = (obj_attributes >> 7) & 1 == 1;
-                const obj_x = self.cpu.memory.read(oam_address + 1);
                 const obj_inner_y = (current_line + 16) - obj_y;
                 var tile_inner_y = obj_inner_y % 8;
                 const y_flip = (obj_attributes >> 6) & 1 == 1;
@@ -273,7 +278,7 @@ fn renderLine(self: *Self) !void {
                 const tile_high = self.cpu.memory.read(tile_row_address + 1);
                 var byte_index: u4 = 0;
                 while (byte_index < 8) : (byte_index += 1) {
-                    if (obj_x + byte_index < 8 or obj_x + byte_index - 8 >= 160) {
+                    if (obj_x + byte_index < 8 or obj_x + byte_index >= 168) {
                         continue;
                     }
                     var pixel = &self.obj_pixels[obj_x + byte_index - 8];
@@ -297,7 +302,7 @@ fn renderLine(self: *Self) !void {
                     pixel.color_index = color_index;
                     pixel.palette = palette_ptr;
                     pixel.priority = priority;
-                    pixel.obj_x = obj_x;
+                    pixel.obj_x = @truncate(obj_x);
                 }
             }
         }

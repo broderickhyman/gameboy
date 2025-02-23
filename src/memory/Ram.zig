@@ -4,8 +4,9 @@ const Self = @This();
 data: []u8,
 start_address: u16,
 
-pub fn create(allocator: *const std.mem.Allocator, start_address: u16, size: u16) !*Self {
+pub fn create(allocator: *const std.mem.Allocator, start_address: u16, end_address: u16) !*Self {
     const ram = try allocator.create(Self);
+    const size = (end_address - start_address) + 1;
     ram.* = .{
         .data = try allocator.alloc(u8, size),
         .start_address = start_address,

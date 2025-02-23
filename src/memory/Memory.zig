@@ -34,6 +34,7 @@ pub fn create(
     bank_count: u9,
     ram_size: u8,
     mapper: Mapper,
+    file_num: u8,
 ) !*Self {
     var rom_banks = std.ArrayList(RomBank).init(allocator.*);
     var counter: u24 = 0;
@@ -47,9 +48,24 @@ pub fn create(
     var external_ram_banks = std.ArrayList(Ram).init(allocator.*);
     counter = 0;
     const ram_banks = ram_size / 8;
-    while (counter < ram_banks) : (counter += 1) {
-        const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
-        try external_ram_banks.append(new_ram.*);
+    if (ram_banks > 0) {
+        var file: ?std.fs.File = null;
+        if (utils.openFileRead(allocator, file_num, "ram.bin")) |file_open| {
+            file = file_open;
+        } else |err| switch (err) {
+            std.fs.File.OpenError.FileNotFound => {},
+            else => return err,
+        }
+        while (counter < ram_banks) : (counter += 1) {
+            const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
+            if (file) |optional| {
+                const size_read = try optional.read(new_ram.data);
+                if (size_read != new_ram.data.len) {
+                    std.debug.panic("Did not read enough RAM data", .{});
+                }
+            }
+            try external_ram_banks.append(new_ram.*);
+        }
     }
     const mem = try allocator.create(Self);
     mem.* = .{
@@ -285,5 +301,14 @@ fn dma(self: *Self, address_index: u8) void {
     var index: u16 = 0;
     while (index < 0x9F) : (index += 1) {
         self.write(destination_start + index, self.read(source_start + index));
+    }
+}
+
+pub fn saveRam(self: *Self, file: std.fs.File) !void {
+    for (self.external_ram_banks) |external_ram_bank| {
+        const bytes_written = try file.write(external_ram_bank.data);
+        if (bytes_written != external_ram_bank.data.len) {
+            std.debug.panic("Did not write all of RAM", .{});
+        }
     }
 }

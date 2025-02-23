@@ -157,6 +157,12 @@ fn read(self: *Self) u8 {
     return memory_value;
 }
 
+pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+    const file = try utils.openFileWrite(allocator, file_num, "ram.bin");
+    defer file.close();
+    try self.memory.saveRam(file);
+}
+
 fn printIndex(self: *Self) void {
     self.print("Current Index: {0d} {0x}\n", .{self.pc});
 }
