@@ -6,7 +6,6 @@ const utils = @import("../utils.zig");
 
 line_progress: u32,
 cpu: *Cpu,
-renderer: *SDL.Renderer,
 ly_ptr: *u8,
 lyc_ptr: *u8,
 stat_ptr: *u8,
@@ -20,14 +19,13 @@ window_index: u8,
 bg_pixels: []Pixel,
 obj_pixels: []Pixel,
 
-pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Renderer) !*Self {
+pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu) !*Self {
     const ppu = try allocator.create(Self);
     const bg_pixels = try allocator.alloc(Pixel, 160);
     const obj_pixels = try allocator.alloc(Pixel, 160);
     const io_memory = cpu.memory.io;
     ppu.* = .{
         .cpu = cpu,
-        .renderer = renderer,
         .line_progress = 0,
         .stat_ptr = io_memory.getMemoryPointer(0xFF41),
         .ly_ptr = io_memory.getMemoryPointer(0xFF44),
@@ -45,7 +43,7 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu, renderer: *SDL.Ren
     return ppu;
 }
 
-pub fn render(self: *Self, dots: u32) !void {
+pub fn render(self: *Self, dots: u32, pixel_data: *SDL.Texture.PixelData) !void {
     const mode_2_length = 80;
     const mode_3_length = 226;
     var current_dots = dots;
@@ -55,7 +53,7 @@ pub fn render(self: *Self, dots: u32) !void {
 
         if (self.current_mode == 2 and self.line_progress > mode_2_length) {
             self.setPpuMode(3);
-            try renderLine(self);
+            try renderLine(self, pixel_data);
             continue;
         }
         if (self.current_mode == 3 and self.line_progress > mode_2_length + mode_3_length) {
@@ -143,7 +141,7 @@ fn setPpuMode(self: *Self, mode: u2) void {
     self.stat_ptr.* = (self.stat_ptr.* & mask) | mode;
 }
 
-fn renderLine(self: *Self) !void {
+fn renderLine(self: *Self, pixel_data: *SDL.Texture.PixelData) !void {
     const lcd_on = (self.lcdc_ptr.* >> 7) == 1;
     if (!lcd_on) {
         return;
@@ -312,17 +310,19 @@ fn renderLine(self: *Self) !void {
         const obj_pixel = &self.obj_pixels[pixel_index];
         const bg_pixel = &self.bg_pixels[pixel_index];
         if (obj_pixel.color_index == 0 or (obj_pixel.priority and bg_pixel.color_index > 0)) {
-            try self.drawPixel(bg_pixel, pixel_index);
+            try self.drawPixel(pixel_data, bg_pixel, pixel_index);
         } else {
-            try self.drawPixel(obj_pixel, pixel_index);
+            try self.drawPixel(pixel_data, obj_pixel, pixel_index);
         }
     }
 }
 
-fn drawPixel(self: *Self, pixel: *const Pixel, x: u8) !void {
+fn drawPixel(self: *Self, pixel_data: *SDL.Texture.PixelData, pixel: *const Pixel, x: u8) !void {
     const color = getColor(pixel.palette, pixel.color_index);
-    try self.renderer.setColorRGB(color, color, color);
-    try self.renderer.drawPoint(x, self.ly_ptr.*);
+    const index: u32 = (@as(u32, self.ly_ptr.*) * 160 * 4) + @as(u32, x) * 4;
+    pixel_data.pixels[index] = color;
+    pixel_data.pixels[index + 1] = color;
+    pixel_data.pixels[index + 2] = color;
 }
 
 fn getColor(pointer: *u8, index: u2) u8 {

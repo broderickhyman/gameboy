@@ -195,7 +195,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     try renderer.setScale(new_scale, new_scale);
     try renderer.setDrawBlendMode(SDL.BlendMode.none);
 
-    const ppu = try Ppu.create(allocator, cpu, &renderer);
+    const ppu = try Ppu.create(allocator, cpu);
     defer allocator.destroy(ppu);
 
     const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
@@ -207,6 +207,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     const fps_buf = try allocator.alloc(u8, 10);
     defer allocator.free(fps_buf);
     var frame_counter: u64 = 0;
+
+    const frame_texture = try SDL.createTexture(renderer, SDL.PixelFormatEnum.rgb888, SDL.Texture.Access.streaming, 160, 144);
 
     mainLoop: while (true) {
         frame_counter += 1;
@@ -254,6 +256,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
         try renderer.setColor(SDL.Color.black);
         try renderer.clear();
 
+        var pixel_data = try SDL.Texture.lock(frame_texture, SDL.Rectangle{ .x = 0, .y = 0, .height = 144, .width = 160 });
+
         // if (frame_counter % 100 == 0) {
         //     std.debug.print("LY: {d}\n", .{ppu.ly_ptr.*});
         // }
@@ -270,7 +274,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                 // if (dots > frameDots) {
                 //     current_dots = dots - frameDots;
                 // }
-                try ppu.render(current_dots);
+                try ppu.render(current_dots, &pixel_data);
             }
             if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});
@@ -278,6 +282,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                 run_cpu = false;
             }
         }
+        pixel_data.release();
+        try renderer.copy(frame_texture, SDL.Rectangle{ .x = 0, .y = 0, .height = 144, .width = 160 }, null);
 
         if (cpu.paused) {
             const surface = try font.renderTextSolid("Paused", SDL.Color.red);
@@ -300,7 +306,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
 
         const end = std.time.nanoTimestamp();
         var elapsed = end - start;
-        if (elapsed <= ideal_frame_time) {
+        if (!fast and elapsed <= ideal_frame_time) {
             const delay: u64 = @intCast(ideal_frame_time - elapsed);
             // if (frame_counter % 10 == 0) {
             //     std.debug.print("Delay: {d}\n", .{@divTrunc(delay, std.time.ns_per_ms)});
