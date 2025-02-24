@@ -121,15 +121,15 @@ pub fn handleTimer(self: *Self, dots: u8) void {
     self.div_counter += cycles;
     if (self.div_counter > 64) {
         self.div_counter -= 64;
-        const div_value = self.memory.read(0xFF04);
+        const div_value = self.memory.io.read(0xFF04);
         const div_result = @addWithOverflow(div_value, 1);
         self.memory.io.write(0xFF04, div_result[0]);
     }
-    const tac = self.memory.read(0xFF07);
-    const enabled = (tac >> 2) & 0b1;
-    if (enabled == 1) {
-        const timer_value = self.memory.read(0xFF05);
-        const clock_select: u10 = switch (tac & 0x11) {
+    const tac = self.memory.io.read(0xFF07);
+    const enabled = (tac >> 2) & 0b1 == 1;
+    if (enabled) {
+        const timer_value: u8 = self.memory.io.read(0xFF05);
+        const clock_select: u10 = switch (tac & 0b11) {
             1 => 4,
             2 => 16,
             3 => 64,
@@ -143,10 +143,10 @@ pub fn handleTimer(self: *Self, dots: u8) void {
             // Set timer interrupt
             self.requestInterrupt(2);
             // Timer modulo
-            self.memory.write(0xFF05, self.memory.read(0xFF06));
+            self.memory.io.write(0xFF05, self.memory.io.read(0xFF06));
             self.halted = false;
         } else {
-            self.memory.write(0xFF05, timer_result[0]);
+            self.memory.io.write(0xFF05, timer_result[0]);
         }
     }
 }
@@ -213,7 +213,7 @@ fn printIndex(self: *Self) void {
 }
 
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.should_print and self.debug) {
+    if (self.should_print) {
         std.debug.print(fmt, args);
     }
     if (self.log_out) |log_out| {

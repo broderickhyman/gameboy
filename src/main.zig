@@ -80,11 +80,9 @@ pub fn main() !void {
     } else if (file_num <= 11) {
         output_memory = true;
         is_doctor_test = true;
-        should_print = !debug and !display;
     } else {
         if (file_num < 17) {
             is_doctor_test = true;
-            should_print = !debug and !display;
         } else {
             display = true;
         }
@@ -227,6 +225,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                         SDL.Keycode.down => joypad.down = 0,
                         SDL.Keycode.left => joypad.left = 0,
                         SDL.Keycode.right => joypad.right = 0,
+                        SDL.Keycode.d => cpu.should_print = true,
                         else => {},
                     }
                 },
@@ -255,16 +254,23 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
         try renderer.setColor(SDL.Color.black);
         try renderer.clear();
 
+        // if (frame_counter % 100 == 0) {
+        //     std.debug.print("LY: {d}\n", .{ppu.ly_ptr.*});
+        // }
+
         if (run_cpu) {
-            var frameSkipping: u32 = 1;
+            var frameDots: u32 = 70224;
             if (fast) {
-                frameSkipping = 2;
+                frameDots *= 2;
             }
             var dots: u32 = 0;
-            while (dots < 70224 * frameSkipping) {
-                const current_dots = try runCpu(cpu);
-                try ppu.render(current_dots);
+            while (dots < frameDots) {
+                const current_dots: u32 = try runCpu(cpu);
                 dots += current_dots;
+                // if (dots > frameDots) {
+                //     current_dots = dots - frameDots;
+                // }
+                try ppu.render(current_dots);
             }
             if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});

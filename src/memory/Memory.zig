@@ -282,7 +282,7 @@ fn updateSelectedRam(self: *Self) void {
 
 fn breakOnAddress(_: *Self, address: u16) void {
     switch (address) {
-        // 0xFF00 => @breakpoint(),
+        // 0xFF05 => @breakpoint(),
         // 0xFF04 => @breakpoint(),
         else => {},
     }
@@ -292,7 +292,7 @@ fn breakOnAddress(_: *Self, address: u16) void {
 }
 
 fn debugWrite(self: *Self, address: u16, value: u8) void {
-    if (address == 0xFF40) {
+    if (address == 0xFF05) {
         // std.debug.print("{X}\n", .{address});
         std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
     }
