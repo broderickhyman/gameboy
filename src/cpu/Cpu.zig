@@ -116,29 +116,36 @@ pub fn requestInterrupt(self: *Self, bit_num: u3) void {
 
 pub fn handleTimer(self: *Self, dots: u8) void {
     self.extra_dots += dots;
-    const cycles: u8 = self.extra_dots / 4;
-    self.extra_dots = self.extra_dots % 4;
-    self.div_counter += cycles;
-    if (self.div_counter > 64) {
-        self.div_counter -= 64;
-        const div_value = self.memory.io.read(0xFF04);
-        const div_result = @addWithOverflow(div_value, 1);
-        self.memory.io.write(0xFF04, div_result[0]);
-    }
+    var cycles: u8 = self.extra_dots / 4;
     const tac = self.memory.io.read(0xFF07);
-    const enabled = (tac >> 2) & 0b1 == 1;
-    if (enabled) {
+    const tac_enabled = (tac >> 2) & 0b1 == 1;
+    const clock_select: u10 = switch (tac & 0b11) {
+        1 => 4,
+        2 => 16,
+        3 => 64,
+        else => 256,
+    };
+    while (cycles > 0) : ({
+        cycles -= 1;
+        self.extra_dots -= 4;
+        self.div_counter += 1;
+    }) {
+        if (self.div_counter >= 64) {
+            self.div_counter -= 64;
+            const div_value = self.memory.io.read(0xFF04);
+            const div_result = @addWithOverflow(div_value, 1);
+            self.memory.io.write(0xFF04, div_result[0]);
+        }
+        if (!tac_enabled) {
+            continue;
+        }
         const timer_value: u8 = self.memory.io.read(0xFF05);
-        const clock_select: u10 = switch (tac & 0b11) {
-            1 => 4,
-            2 => 16,
-            3 => 64,
-            else => 256,
-        };
-        self.extra_timer_cycles += cycles;
-        const ticks: u8 = @truncate(self.extra_timer_cycles / clock_select);
-        self.extra_timer_cycles -= ticks * clock_select;
-        const timer_result = @addWithOverflow(timer_value, ticks);
+        self.extra_timer_cycles += 1;
+        if (self.extra_timer_cycles < clock_select) {
+            continue;
+        }
+        self.extra_timer_cycles -= clock_select;
+        const timer_result = @addWithOverflow(timer_value, 1);
         if (timer_result[1] == 1) {
             // Set timer interrupt
             self.requestInterrupt(2);
@@ -148,6 +155,7 @@ pub fn handleTimer(self: *Self, dots: u8) void {
         } else {
             self.memory.io.write(0xFF05, timer_result[0]);
         }
+        // std.debug.print("Timer: {d}\n", .{self.memory.io.read(0xFF05)});
     }
 }
 

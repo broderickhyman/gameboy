@@ -65,7 +65,7 @@ pub fn main() !void {
         12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb", // Passed
         13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
         14 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
-        15 => "../gb-test-roms/mem_timing/mem_timing.gb",
+        15 => "../gb-test-roms/mem_timing/individual/01-read_timing.gb",
         16 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
         17 => "../roms/dmg-acid2.gb", // Passed
         18 => "../roms/red.gb",
