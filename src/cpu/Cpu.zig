@@ -183,11 +183,30 @@ pub fn printFlags(self: *Self) void {
 }
 
 pub fn logState(self: *Self) !void {
+    if (self.is_doctor_test) {
+        try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+            a_reg.*,
+            af.sp.flag.full,
+            bc.sp.hi,
+            bc.sp.lo,
+            de.sp.hi,
+            de.sp.lo,
+            hl.sp.hi,
+            hl.sp.lo,
+            sp,
+            self.pc,
+            self.memory.read(self.pc),
+            self.memory.read(self.pc + 1),
+            self.memory.read(self.pc + 2),
+            self.memory.read(self.pc + 3),
+        });
+    }
     if (!self.output_memory) {
         return;
     }
-    try self.log_out.?.print("{X:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    try self.log_out.?.print("{X:08} {b:016} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
         self.counter,
+        self.timer.internal_counter,
         a_reg.*,
         af.sp.flag.full,
         bc.sp.hi,

@@ -73,22 +73,29 @@ pub fn main() !void {
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
         21 => "../roms/alleyway.gb",
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
+        22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/rapid_toggle.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00_div_trigger.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb", // Failed
-        22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_reload.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_write_reloading.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tma_write_reloading.gb", // Failed
         else => "",
     };
     var start_pc: u16 = 0x0100;
     if (file_num == 0) {
         start_pc = 0;
     } else if (file_num <= 11) {
-        output_memory = true;
-        is_doctor_test = true;
+        is_doctor_test = !display;
     } else {
         if (file_num < 17) {
-            is_doctor_test = true;
+            is_doctor_test = !display;
         } else {
             display = true;
         }
@@ -396,6 +403,9 @@ fn runCpu(cpu: *Cpu) !u8 {
     cpu.timer.handleDots(cpu, dots);
     const interrupt_dots = cpu.handleInterrupts();
     cpu.timer.handleDots(cpu, interrupt_dots);
+    if (!cpu.timer.halted) {
+        try cpu.logState();
+    }
     return dots + interrupt_dots;
 }
 

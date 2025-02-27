@@ -116,8 +116,8 @@ pub fn read(self: *Self, address: u16) u8 {
 fn read_int(self: *Self, address: u16) u8 {
     if (address == 0xFF00) {
         return self.joypad.read();
-    } else if (address == 0xFF04) {
-        return self.timer.readDiv();
+    } else if (address >= 0xFF04 and address <= 0xFF07) {
+        return self.timer.read(address);
     }
 
     return switch (address) {
@@ -165,13 +165,8 @@ pub fn write(self: *Self, address: u16, value: u8) void {
             self.joypad.write(value);
             return;
         },
-        0xFF04 => {
-            // DIV
-            self.timer.resetDiv();
-            return;
-        },
-        0xFF05 => {
-            self.timer.writeTimer(value);
+        0xFF04...0xFF07 => {
+            self.timer.write(address, value, self);
             return;
         },
         else => {},
