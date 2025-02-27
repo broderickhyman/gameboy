@@ -75,7 +75,13 @@ pub fn main() !void {
         21 => "../roms/alleyway.gb",
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
-        22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", //
+        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/rapid_toggle.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Passed
