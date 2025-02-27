@@ -1,0 +1,91 @@
+const std = @import("std");
+const Endian = std.builtin.Endian;
+const Self = @This();
+const utils = @import("../utils.zig");
+const Memory = @import("../memory/Memory.zig");
+const Cpu = @import("Cpu.zig");
+
+halted: bool,
+internal_counter: u16,
+timer: u8,
+falling_edge: u1,
+
+pub fn create(
+    allocator: *const std.mem.Allocator,
+) !*Self {
+    const timer = try allocator.create(Self);
+    timer.* = .{
+        .halted = false,
+        .internal_counter = 0,
+        .timer = 0,
+        .falling_edge = 0,
+    };
+    return timer;
+}
+
+pub fn handleDots(self: *Self, cpu: *Cpu, starting_dots: u8) void {
+    var dots = starting_dots;
+    const tac = cpu.memory.io.read(0xFF07);
+    const tac_enabled: u1 = @truncate((tac >> 2) & 0b1);
+    const clock_bit: u4 = switch (tac & 0b11) {
+        1 => 3,
+        2 => 5,
+        3 => 7,
+        else => 9,
+    };
+    while (dots > 0) : ({
+        dots -= 1;
+    }) {
+        self.internal_counter += 1;
+        const counter_result = @addWithOverflow(self.internal_counter, 1);
+        self.internal_counter = counter_result[0];
+
+        const counter_bit: u1 = @truncate(self.internal_counter >> clock_bit);
+        const edge_value = tac_enabled & counter_bit;
+        if (self.falling_edge == 0) {
+            self.falling_edge = edge_value;
+        } else if (self.falling_edge == 1 and edge_value == 0) {
+            self.falling_edge = 0;
+            const timer_result = @addWithOverflow(self.timer, 1);
+            if (timer_result[1] == 1) {
+                // Set timer interrupt
+                cpu.memory.requestInterrupt(2);
+                // Timer modulo
+                self.timer = cpu.memory.io.read(0xFF06);
+                self.halted = false;
+            } else {
+                self.timer = timer_result[0];
+            }
+        }
+    }
+}
+
+pub fn readDiv(self: *Self) u8 {
+    return @truncate(self.internal_counter >> 8);
+}
+
+pub fn resetDiv(self: *Self) void {
+    self.internal_counter = 0;
+}
+
+pub fn readTimer(self: *Self) u8 {
+    return self.timer;
+}
+
+pub fn writeTimer(self: *Self, value: u8) void {
+    self.timer = value;
+}
+
+pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
+    try writer.writeInt(u8, @intFromBool(self.halted), Endian.big);
+    try writer.writeInt(u16, self.internal_counter, Endian.big);
+    try writer.writeInt(u8, self.timer, Endian.big);
+    try writer.writeInt(u8, self.falling_edge, Endian.big);
+}
+
+pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
+    self.halted = try reader.readInt(u8, Endian.big) == 1;
+    self.internal_counter = @truncate(try reader.readInt(u16, Endian.big));
+    self.timer = try reader.readInt(u8, Endian.big);
+    self.falling_edge = @truncate(try reader.readInt(u8, Endian.big));
+}

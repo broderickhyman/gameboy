@@ -7,7 +7,9 @@ const JoyPad = @import("../io/Joypad.zig");
 const Mapper = @import("../utils.zig").Mapper;
 const utils = @import("../utils.zig");
 const zdt = @import("zdt");
+const Timer = @import("../cpu/Timer.zig");
 
+timer: *Timer,
 mapper: Mapper,
 rom_banks: []RomBank,
 rom_1: *RomBank,
@@ -29,14 +31,17 @@ banking_mode: u1,
 rtc_register: u4,
 latch_last_write: u8,
 latched_time: zdt.Datetime,
+log_out: ?std.fs.File.Writer,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
+    timer: *Timer,
     file_data: []u8,
     bank_count: u9,
     ram_size: u8,
     mapper: Mapper,
     file_num: u8,
+    log_out: ?std.fs.File.Writer,
 ) !*Self {
     var rom_banks = std.ArrayList(RomBank).init(allocator.*);
     var counter: u24 = 0;
@@ -68,6 +73,7 @@ pub fn create(
     }
     const mem = try allocator.create(Self);
     mem.* = .{
+        .timer = timer,
         .mapper = mapper,
         .rom_banks = rom_banks.items,
         .rom_1 = &rom_banks.items[0],
@@ -89,6 +95,7 @@ pub fn create(
         .rtc_register = 0,
         .latch_last_write = 0xFF,
         .latched_time = zdt.Datetime.nowUTC(),
+        .log_out = log_out,
     };
     if (external_ram_banks.items.len > 0) {
         mem.*.external_ram = &external_ram_banks.items[0];
@@ -101,7 +108,7 @@ pub fn read(self: *Self, address: u16) u8 {
 
     const result = self.read_int(address);
 
-    // self.debugWrite(address, result);
+    self.debugWrite(address, result);
 
     return result;
 }
@@ -109,6 +116,8 @@ pub fn read(self: *Self, address: u16) u8 {
 fn read_int(self: *Self, address: u16) u8 {
     if (address == 0xFF00) {
         return self.joypad.read();
+    } else if (address == 0xFF04) {
+        return self.timer.readDiv();
     }
 
     return switch (address) {
@@ -158,7 +167,11 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         },
         0xFF04 => {
             // DIV
-            self.io.write(0xFF04, 0);
+            self.timer.resetDiv();
+            return;
+        },
+        0xFF05 => {
+            self.timer.writeTimer(value);
             return;
         },
         else => {},
@@ -294,7 +307,10 @@ fn breakOnAddress(_: *Self, address: u16) void {
 fn debugWrite(self: *Self, address: u16, value: u8) void {
     if (address == 0xFF05) {
         // std.debug.print("{X}\n", .{address});
-        std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
+        // std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
+        if (self.log_out) |log_out| {
+            log_out.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value }) catch std.debug.panic("Could not print.", .{});
+        }
     }
 }
 
@@ -307,6 +323,10 @@ fn dma(self: *Self, address_index: u8) void {
     while (index < 0x9F) : (index += 1) {
         self.write(destination_start + index, self.read(source_start + index));
     }
+}
+
+pub fn requestInterrupt(self: *Self, bit_num: u3) void {
+    utils.setBit(self.io.getMemoryPointer(0xFF0F), bit_num);
 }
 
 pub fn saveRam(self: *Self, writer: *const std.fs.File.Writer) !void {

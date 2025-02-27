@@ -3,8 +3,10 @@ const Endian = std.builtin.Endian;
 const Self = @This();
 const utils = @import("../utils.zig");
 const Memory = @import("../memory/Memory.zig");
+const Timer = @import("Timer.zig");
 
 memory: *Memory,
+timer: *Timer,
 pc: u16,
 counter: u32,
 debug: bool,
@@ -15,15 +17,12 @@ std_out: std.fs.File.Writer,
 log_out: ?std.fs.File.Writer,
 is_doctor_test: bool,
 ime: u1,
-extra_dots: u8,
-extra_timer_cycles: u10,
-div_counter: u10,
-halted: bool,
 paused: bool,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
     memory: *Memory,
+    timer: *Timer,
     start_pc: u16,
     std_out: std.fs.File.Writer,
     log_out: ?std.fs.File.Writer,
@@ -32,6 +31,7 @@ pub fn create(
 
     cpu.* = .{
         .memory = memory,
+        .timer = timer,
         .pc = start_pc,
         .counter = 1,
         .should_print = false,
@@ -42,17 +42,13 @@ pub fn create(
         .log_out = log_out,
         .is_doctor_test = false,
         .ime = 0,
-        .extra_dots = 0,
-        .extra_timer_cycles = 0,
-        .div_counter = 0,
-        .halted = false,
         .paused = false,
     };
     return cpu;
 }
 
 pub fn cycle(self: *Self) u8 {
-    if (self.halted) {
+    if (self.timer.halted) {
         return 4;
     }
     const op_code = self.read();
@@ -98,7 +94,7 @@ fn handleInterrupt(self: *Self, enabled: u8, flag: *u8, shift: u3, address: u16)
     if (is_enabled == 1 and is_flagged == 1) {
         self.print("Interrupt: {d}\n", .{shift});
         // @breakpoint();
-        self.halted = false;
+        self.timer.halted = false;
         self.ime = 0;
         utils.resetBit(flag, shift);
         call_int(self, address);
@@ -111,52 +107,7 @@ pub fn requestInterrupt(self: *Self, bit_num: u3) void {
     if (self.paused) {
         return;
     }
-    utils.setBit(self.memory.io.getMemoryPointer(0xFF0F), bit_num);
-}
-
-pub fn handleTimer(self: *Self, dots: u8) void {
-    self.extra_dots += dots;
-    var cycles: u8 = self.extra_dots / 4;
-    const tac = self.memory.io.read(0xFF07);
-    const tac_enabled = (tac >> 2) & 0b1 == 1;
-    const clock_select: u10 = switch (tac & 0b11) {
-        1 => 4,
-        2 => 16,
-        3 => 64,
-        else => 256,
-    };
-    while (cycles > 0) : ({
-        cycles -= 1;
-        self.extra_dots -= 4;
-        self.div_counter += 1;
-    }) {
-        if (self.div_counter >= 64) {
-            self.div_counter -= 64;
-            const div_value = self.memory.io.read(0xFF04);
-            const div_result = @addWithOverflow(div_value, 1);
-            self.memory.io.write(0xFF04, div_result[0]);
-        }
-        if (!tac_enabled) {
-            continue;
-        }
-        const timer_value: u8 = self.memory.io.read(0xFF05);
-        self.extra_timer_cycles += 1;
-        if (self.extra_timer_cycles < clock_select) {
-            continue;
-        }
-        self.extra_timer_cycles -= clock_select;
-        const timer_result = @addWithOverflow(timer_value, 1);
-        if (timer_result[1] == 1) {
-            // Set timer interrupt
-            self.requestInterrupt(2);
-            // Timer modulo
-            self.memory.io.write(0xFF05, self.memory.io.read(0xFF06));
-            self.halted = false;
-        } else {
-            self.memory.io.write(0xFF05, timer_result[0]);
-        }
-        // std.debug.print("Timer: {d}\n", .{self.memory.io.read(0xFF05)});
-    }
+    self.memory.requestInterrupt(bit_num);
 }
 
 fn read(self: *Self) u8 {
@@ -184,15 +135,12 @@ pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8)
     try writer.writeInt(u16, de.full, Endian.big);
     try writer.writeInt(u16, hl.full, Endian.big);
     try writer.writeInt(u16, sp, Endian.big);
-    try self.memory.saveState(&writer);
     try writer.writeInt(u16, self.pc, Endian.big);
     try writer.writeInt(u32, self.counter, Endian.big);
     try writer.writeInt(u8, self.ime, Endian.big);
-    try writer.writeInt(u8, self.extra_dots, Endian.big);
-    try writer.writeInt(u16, self.extra_timer_cycles, Endian.big);
-    try writer.writeInt(u16, self.div_counter, Endian.big);
-    try writer.writeInt(u8, @intFromBool(self.halted), Endian.big);
     try writer.writeInt(u8, @intFromBool(self.paused), Endian.big);
+    try self.memory.saveState(&writer);
+    try self.timer.saveState(&writer);
 }
 
 pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
@@ -205,15 +153,12 @@ pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8)
     de.full = try reader.readInt(u16, Endian.big);
     hl.full = try reader.readInt(u16, Endian.big);
     sp = try reader.readInt(u16, Endian.big);
-    try self.memory.loadState(&reader);
     self.pc = try reader.readInt(u16, Endian.big);
     self.counter = try reader.readInt(u32, Endian.big);
     self.ime = @truncate(try reader.readInt(u8, Endian.big));
-    self.extra_dots = try reader.readInt(u8, Endian.big);
-    self.extra_timer_cycles = @truncate(try reader.readInt(u16, Endian.big));
-    self.div_counter = @truncate(try reader.readInt(u16, Endian.big));
-    self.halted = try reader.readInt(u8, Endian.big) == 1;
     self.paused = try reader.readInt(u8, Endian.big) == 1;
+    try self.memory.loadState(&reader);
+    try self.timer.loadState(&reader);
 }
 
 fn printIndex(self: *Self) void {
@@ -222,10 +167,10 @@ fn printIndex(self: *Self) void {
 
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
     if (self.should_print) {
-        std.debug.print(fmt, args);
-    }
-    if (self.log_out) |log_out| {
-        log_out.print(fmt, args) catch std.debug.panic("Could not print.", .{});
+        // std.debug.print(fmt, args);
+        if (self.log_out) |log_out| {
+            log_out.print(fmt, args) catch std.debug.panic("Could not print.", .{});
+        }
     }
 }
 
@@ -241,7 +186,8 @@ pub fn logState(self: *Self) !void {
     if (!self.output_memory) {
         return;
     }
-    try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    try self.log_out.?.print("{X:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+        self.counter,
         a_reg.*,
         af.sp.flag.full,
         bc.sp.hi,
@@ -1091,7 +1037,7 @@ fn ccf(self: *Self, _: u8) u8 {
 fn halt(self: *Self, _: u8) u8 {
     // Low Power Mode
     self.print("HALT\n", .{});
-    self.halted = true;
+    self.timer.halted = true;
     return 0;
 }
 
@@ -1207,6 +1153,7 @@ fn cb_prefix(self: *Self, _: u8) u8 {
 fn stop(self: *Self, _: u8) u8 {
     _ = self.read();
     self.print("STOP\n", .{});
+    @breakpoint();
     return 0;
 }
 

@@ -3,6 +3,7 @@ const Cpu = @import("cpu/Cpu.zig");
 const Ppu = @import("display/PPU.zig");
 const SDL = @import("sdl2");
 const Memory = @import("memory/Memory.zig");
+const Timer = @import("cpu/Timer.zig");
 const Mapper = @import("utils.zig").Mapper;
 const utils = @import("utils.zig");
 
@@ -72,6 +73,11 @@ pub fn main() !void {
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
         21 => "../roms/alleyway.gb",
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb", // Failed
+        22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
         else => "",
     };
     var start_pc: u16 = 0x0100;
@@ -145,9 +151,11 @@ pub fn main() !void {
         log_out = log_file.writer();
     }
 
-    const memory = try Memory.create(&gpa_allocator, file_data, bank_count, ram_size, mapper, file_num);
+    const timer = try Timer.create(&gpa_allocator);
 
-    const cpu = try Cpu.create(&gpa_allocator, memory, start_pc, std_out, log_out);
+    const memory = try Memory.create(&gpa_allocator, timer, file_data, bank_count, ram_size, mapper, file_num, log_out);
+
+    const cpu = try Cpu.create(&gpa_allocator, memory, timer, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
 
     cpu.should_print = should_print;
@@ -357,11 +365,12 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
-        if (cpu.debug and cpu.counter > 151000) {
-            // cpu.should_print = true;
-        }
+        // if (cpu.counter > 0x000253C5) {
+        //     cpu.should_print = true;
+        //     cpu.output_memory = true;
+        // }
         _ = try runCpu(cpu);
-        if (!cpu.halted) {
+        if (!cpu.timer.halted) {
             try cpu.logState();
         }
     }
@@ -374,7 +383,7 @@ fn runCpu(cpu: *Cpu) !u8 {
     const dots = cpu.cycle();
     const serial_control = cpu.memory.read(0xFF02);
     const serial_enabled = serial_control >> 7 & 1 == 1;
-    if (cpu.is_doctor_test and serial_enabled) {
+    if (cpu.debug and serial_enabled) {
         // std.debug.print("Serial: {b}\n", .{serial_control});
         const serial_value = cpu.memory.read(0xFF01);
         if (serial_value > 0) {
@@ -384,9 +393,9 @@ fn runCpu(cpu: *Cpu) !u8 {
         // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
         // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
-    cpu.handleTimer(dots);
+    cpu.timer.handleDots(cpu, dots);
     const interrupt_dots = cpu.handleInterrupts();
-    cpu.handleTimer(interrupt_dots);
+    cpu.timer.handleDots(cpu, interrupt_dots);
     return dots + interrupt_dots;
 }
 
