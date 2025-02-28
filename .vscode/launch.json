@@ -16,6 +16,15 @@
     {
       "type": "lldb",
       "request": "launch",
+      "name": "Debug Verbose",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["22", "--display", "--debug", "--verbose", "--log", "--mem"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
       "name": "Tetris",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["19", "--display"],
@@ -64,15 +73,6 @@
       "name": "Debug",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["15", "--debug"],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "build"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Debug Verbose",
-      "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["22", "--display", "--debug", "--verbose", "--log", "--mem"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },

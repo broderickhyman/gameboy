@@ -127,7 +127,7 @@ pub fn create(
     };
     const offset: u16 = 0xFF10;
     for (mem_data, 0..) |data, index| {
-        mem.*.write(offset + @as(u16, @truncate(index)), data);
+        mem.*.io.write(offset + @as(u16, @truncate(index)), data);
     }
     return mem;
 }
@@ -353,11 +353,10 @@ fn debugWrite(self: *Self, address: u16, value: u8) void {
 
 fn dma(self: *Self, address_index: u8) void {
     // @breakpoint();
-    // std.debug.print("DMA: Index: {x}\n", .{address_index});
     const source_start: u16 = @as(u16, address_index) << 8;
     const destination_start: u16 = 0xFE00;
     var index: u16 = 0;
-    while (index < 0x9F) : (index += 1) {
+    while (index <= 0x9F) : (index += 1) {
         self.write(destination_start + index, self.read(source_start + index));
     }
 }

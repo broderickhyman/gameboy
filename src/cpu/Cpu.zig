@@ -389,23 +389,23 @@ fn ld_a_a16(self: *Self, _: u8) u8 {
 }
 
 fn ldh_c_a(self: *Self, _: u8) u8 {
-    self.print("LD ($FF00+C),A\n", .{});
     const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
+    self.print("LDH (${X:04}),A\n", .{address});
     self.memory.write(address, a_reg.*);
     return 8;
 }
 
 fn ldh_a_c(self: *Self, _: u8) u8 {
-    self.print("LD A,($FF00+C)\n", .{});
     const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
+    self.print("LDH A,(${X:04})\n", .{address});
     a_reg.* = self.memory.read(address);
     return 8;
 }
 
 fn ldh_a8_a(self: *Self, _: u8) u8 {
     const displacement = self.read();
-    self.print("LD ($FF00+${X}),A\n", .{displacement});
     const address: u16 = @as(u16, 0xFF00) + displacement;
+    self.print("LDH (${X:04}),A\n", .{address});
     if (address >= 0xFF00 and address <= 0xFFFF) {
         self.memory.write(address, a_reg.*);
     } else {
@@ -416,8 +416,8 @@ fn ldh_a8_a(self: *Self, _: u8) u8 {
 
 fn ldh_a_a8(self: *Self, _: u8) u8 {
     const displacement = self.read();
-    self.print("LD A,($FF00+${X})\n", .{displacement});
     const address: u16 = @as(u16, 0xFF00) + displacement;
+    self.print("LDH A,(${X:04})\n", .{address});
     if (address >= 0xFF00 and address <= 0xFFFF) {
         a_reg.* = self.memory.read(address);
     } else {
