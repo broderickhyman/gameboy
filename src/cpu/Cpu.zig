@@ -53,7 +53,14 @@ pub fn cycle(self: *Self) u8 {
     }
     const op_code = self.read();
     self.counter = @addWithOverflow(self.counter, 1)[0];
-    return op_lookup[op_code](self, op_code);
+    const dots = op_lookup[op_code](self, op_code);
+
+    self.timer.handleDots(self, dots);
+    self.memory.handleDots(dots);
+    const interrupt_dots = self.handleInterrupts();
+    self.timer.handleDots(self, interrupt_dots);
+    self.memory.handleDots(interrupt_dots);
+    return dots + interrupt_dots;
 }
 
 pub fn handleInterrupts(self: *Self) u8 {
@@ -204,9 +211,11 @@ pub fn logState(self: *Self) !void {
     if (!self.output_memory) {
         return;
     }
-    try self.log_out.?.print("{X:08} {b:016} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    try self.log_out.?.print("{X:08} {b:016}-{d:08}-{X:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
         self.counter,
         self.timer.internal_counter,
+        self.timer.internal_counter,
+        self.timer.read(0xFF04),
         a_reg.*,
         af.sp.flag.full,
         bc.sp.hi,

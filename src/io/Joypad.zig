@@ -16,8 +16,8 @@ pub fn create(allocator: *const std.mem.Allocator) !*Self {
     const joypad = try allocator.create(Self);
 
     joypad.* = .{
-        .buttons_selected = 1,
-        .pad_selected = 1,
+        .buttons_selected = 0,
+        .pad_selected = 0,
         .start = 1,
         .down = 1,
         .select = 1,
@@ -36,7 +36,7 @@ pub fn write(self: *Self, value: u8) void {
 }
 
 pub fn read(self: *Self) u8 {
-    var base: u8 = (@as(u8, self.buttons_selected) << 5) | (@as(u8, self.pad_selected) << 4);
+    var base: u8 = (0b11 << 6) | (@as(u8, self.buttons_selected) << 5) | (@as(u8, self.pad_selected) << 4);
     if (self.buttons_selected == 0) {
         base = base | (@as(u8, self.start) << 3) | (@as(u8, self.select) << 2) | (@as(u8, self.b) << 1) | self.a;
     }

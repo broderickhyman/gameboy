@@ -32,6 +32,9 @@ rtc_register: u4,
 latch_last_write: u8,
 latched_time: zdt.Datetime,
 log_out: ?std.fs.File.Writer,
+dma_delay: u8,
+dma_timing: u12,
+dma_running: bool,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
@@ -96,10 +99,15 @@ pub fn create(
         .latch_last_write = 0xFF,
         .latched_time = zdt.Datetime.nowUTC(),
         .log_out = log_out,
+        .dma_delay = 0,
+        .dma_timing = 0,
+        .dma_running = false,
     };
     if (external_ram_banks.items.len > 0) {
         mem.*.external_ram = &external_ram_banks.items[0];
     }
+    mem.*.io.write(0xFF02, 0x7E);
+    mem.*.io.write(0xFF50, 0xFF);
     return mem;
 }
 
@@ -116,6 +124,9 @@ pub fn read(self: *Self, address: u16) u8 {
 fn read_int(self: *Self, address: u16) u8 {
     if (address == 0xFF00) {
         return self.joypad.read();
+        // } else if (address == 0xFF03 or address >= 0xFF08 or address < 0xFF10) {
+        //     // Unused
+        //     return 0xFF;
     } else if (address >= 0xFF04 and address <= 0xFF07) {
         return self.timer.read(address);
     }
@@ -146,7 +157,12 @@ fn read_int(self: *Self, address: u16) u8 {
         },
         0xC000...0xCFFF => self.wram_1.read(address),
         0xD000...0xDFFF => self.wram_2.read(address),
-        0xFE00...0xFE9F => self.oam.read(address),
+        0xFE00...0xFE9F => {
+            if (self.dma_running) {
+                return 0xFF;
+            }
+            return self.oam.read(address);
+        },
         0xFF00...0xFF7F => self.io.read(address),
         0xFF80...0xFFFE => self.hram.read(address),
         0xFFFF => self.ie,
@@ -159,7 +175,8 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         0xFF46 => {
             // OAM DMA
             self.dma(value);
-            return;
+            self.dma_delay = 4;
+            self.dma_timing = 640;
         },
         0xFF00 => {
             self.joypad.write(value);
@@ -193,7 +210,11 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         },
         0xC000...0xCFFF => self.wram_1.write(address, value),
         0xD000...0xDFFF => self.wram_2.write(address, value),
-        0xFE00...0xFE9F => self.oam.write(address, value),
+        0xFE00...0xFE9F => {
+            if (!self.dma_running) {
+                self.oam.write(address, value);
+            }
+        },
         0xFF00...0xFF7F => self.io.write(address, value),
         0xFF80...0xFFFE => self.hram.write(address, value),
         0xFFFF => self.ie = value,
@@ -317,6 +338,27 @@ fn dma(self: *Self, address_index: u8) void {
     var index: u16 = 0;
     while (index < 0x9F) : (index += 1) {
         self.write(destination_start + index, self.read(source_start + index));
+    }
+}
+
+pub fn handleDots(self: *Self, starting_dots: u8) void {
+    var dots = starting_dots;
+    while (dots > 0) : ({
+        dots -= 1;
+    }) {
+        if (self.dma_delay > 0) {
+            self.dma_delay -= 1;
+            if (self.dma_delay == 0) {
+                self.dma_running = true;
+            }
+            return;
+        }
+        if (self.dma_timing > 0) {
+            self.dma_timing -= 1;
+            if (self.dma_timing == 0) {
+                self.dma_running = false;
+            }
+        }
     }
 }
 

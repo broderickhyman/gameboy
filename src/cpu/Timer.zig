@@ -20,9 +20,9 @@ pub fn create(
     const timer = try allocator.create(Self);
     timer.* = .{
         .halted = false,
-        .internal_counter = 0,
+        .internal_counter = 0x18 << 8,
         .timer = 0,
-        .tac = 0,
+        .tac = 0xF8,
         .modulo = 0,
         .falling_edge = 0,
         .tac_enabled = 0,

@@ -73,13 +73,24 @@ pub fn main() !void {
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
         21 => "../roms/alleyway.gb",
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/mem_oam.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/reg_f.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/unused_hwio-GS.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/instr/daa.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/interrupts/ie_push.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/basic.gb", // Failed
+        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/sources-GS.gb", // Failed, need MBC5
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmg0.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmg0.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmg0.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", //
-        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", //
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
@@ -406,13 +417,10 @@ fn runCpu(cpu: *Cpu) !u8 {
         // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
         // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
-    cpu.timer.handleDots(cpu, dots);
-    const interrupt_dots = cpu.handleInterrupts();
-    cpu.timer.handleDots(cpu, interrupt_dots);
     if (!cpu.timer.halted) {
         try cpu.logState();
     }
-    return dots + interrupt_dots;
+    return dots;
 }
 
 fn fakeCartridge(cpu: *Cpu) void {
