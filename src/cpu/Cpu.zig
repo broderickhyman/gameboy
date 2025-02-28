@@ -48,12 +48,14 @@ pub fn create(
 }
 
 pub fn cycle(self: *Self) u8 {
+    var dots: u8 = undefined;
     if (self.timer.halted) {
-        return 4;
+        dots = 4;
+    } else {
+        const op_code = self.read();
+        self.counter = @addWithOverflow(self.counter, 1)[0];
+        dots = op_lookup[op_code](self, op_code);
     }
-    const op_code = self.read();
-    self.counter = @addWithOverflow(self.counter, 1)[0];
-    const dots = op_lookup[op_code](self, op_code);
 
     self.timer.handleDots(self, dots);
     self.memory.handleDots(dots);

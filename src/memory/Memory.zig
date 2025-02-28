@@ -137,7 +137,7 @@ pub fn read(self: *Self, address: u16) u8 {
 
     const result = self.read_int(address);
 
-    self.debugWrite(address, result);
+    // self.debugWrite(address, 0);
 
     return result;
 }
@@ -342,9 +342,9 @@ fn breakOnAddress(_: *Self, address: u16) void {
 }
 
 fn debugWrite(self: *Self, address: u16, value: u8) void {
-    if (address == 0xFF05) {
+    if (address == 0xFF4A) {
         // std.debug.print("{X}\n", .{address});
-        // std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
+        std.debug.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value });
         if (self.log_out) |log_out| {
             log_out.print("Current_value: {b:08} Value: {b:08}\n", .{ self.read_int(address), value }) catch std.debug.panic("Could not print.", .{});
         }
