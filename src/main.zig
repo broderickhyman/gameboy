@@ -79,12 +79,12 @@ pub fn main() !void {
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/instr/daa.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/interrupts/ie_push.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/basic.gb", // Failed
-        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/sources-GS.gb", // Failed, need MBC5
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmg0.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmg0.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmg0.gb", //
+        22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmgABCmgb.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmgABCmgb.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmgABC.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", //
