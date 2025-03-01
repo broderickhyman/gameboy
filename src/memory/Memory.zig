@@ -198,6 +198,7 @@ pub fn write(self: *Self, address: u16, value: u8) void {
             self.dma(value);
             self.dma_delay = 4;
             self.dma_timing = 640;
+            self.print("\nDMA Start\n\n", .{});
         },
         0xFF00 => {
             self.joypad.write(value);
@@ -371,12 +372,13 @@ pub fn handleDots(self: *Self, starting_dots: u8) void {
             if (self.dma_delay == 0) {
                 self.dma_running = true;
             }
-            return;
+            continue;
         }
         if (self.dma_timing > 0) {
             self.dma_timing -= 1;
             if (self.dma_timing == 0) {
                 self.dma_running = false;
+                self.print("\nDMA End\n\n", .{});
             }
         }
     }
@@ -384,6 +386,12 @@ pub fn handleDots(self: *Self, starting_dots: u8) void {
 
 pub fn requestInterrupt(self: *Self, bit_num: u3) void {
     utils.setBit(self.io.getMemoryPointer(0xFF0F), bit_num);
+}
+
+fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
+    if (self.log_out) |log_out| {
+        log_out.print(fmt, args) catch std.debug.panic("Could not print.", .{});
+    }
 }
 
 pub fn saveRam(self: *Self, writer: *const std.fs.File.Writer) !void {

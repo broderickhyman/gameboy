@@ -217,15 +217,16 @@ pub fn logState(self: *Self) !void {
             self.memory.read(self.pc + 3),
         });
     }
-    if (!self.output_memory) {
+    if (!(self.should_print and self.output_memory)) {
         return;
     }
-    try self.log_out.?.print("{X:08} {b:016}-{d:08}-{X:08} {d:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    try self.log_out.?.print("{X:08} {d:08}-{X:08} {d:08} {d:1}-{d:03} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
         self.counter,
-        self.timer.internal_counter,
         self.timer.internal_counter,
         self.timer.read(0xFF04),
         self.timer.timer,
+        self.memory.dma_delay,
+        self.memory.dma_timing,
         a_reg.*,
         af.sp.flag.full,
         bc.sp.hi,
@@ -248,8 +249,9 @@ fn readRegDataValue(self: *Self, index: u8) u8 {
         if (hl.full == 0xFF05) {
             self.print("\nRead Timer: {d}\n\n", .{self.memory.read(hl.full)});
         }
-        const value = self.memory.read(hl.full);
+        self.print("Read HL: ${X:04}\n", .{hl.full});
         self.handleDots(4);
+        const value = self.memory.read(hl.full);
         return value;
     } else {
         return reg_8_t[index].*;
@@ -261,8 +263,9 @@ fn writeRegDataValue(self: *Self, index: u8, value: u8) void {
         if (hl.full == 0xFF05) {
             self.print("\nWrite Timer: {d}\n\n", .{value});
         }
-        self.memory.write(hl.full, value);
+        self.print("Write HL: ${X:04}\n", .{hl.full});
         self.handleDots(4);
+        self.memory.write(hl.full, value);
     } else {
         reg_8_t[index].* = value;
     }
@@ -304,7 +307,7 @@ fn ld_rp_n16(self: *Self, op_code: u8) void {
     const register = reg_p[p];
     const right = self.read();
     const value: u16 = (@as(u16, self.read()) << 8) | right;
-    self.print("LD {s},${x:04}\n", .{ register, value });
+    self.print("LD {s},${X:04}\n", .{ register, value });
     reg_p_t[p].* = value;
     // return 12;
 }
@@ -313,7 +316,7 @@ fn ld_r_n8(self: *Self, op_code: u8) void {
     const y: u3 = @truncate(op_code >> 3);
     const register = reg_8[y];
     const value = self.read();
-    self.print("LD {s},${x:04}\n", .{ register, value });
+    self.print("LD {s},${X:04}\n", .{ register, value });
     self.writeRegDataValue(y, value);
     // if (y == 6) {
     //     return 12;
@@ -340,62 +343,62 @@ fn ld_r_r(self: *Self, op_code: u8) void {
 
 fn ld_bc_a(self: *Self, _: u8) void {
     self.print("LD (BC),A\n", .{});
-    self.memory.write(bc.full, a_reg.*);
     self.handleDots(4);
+    self.memory.write(bc.full, a_reg.*);
     // return 8;
 }
 
 fn ld_de_a(self: *Self, _: u8) void {
     self.print("LD (DE),A\n", .{});
-    self.memory.write(de.full, a_reg.*);
     self.handleDots(4);
+    self.memory.write(de.full, a_reg.*);
     // return 8;
 }
 
 fn ld_a_bc(self: *Self, _: u8) void {
     self.print("LD A,(BC)\n", .{});
-    a_reg.* = self.memory.read(bc.full);
     self.handleDots(4);
+    a_reg.* = self.memory.read(bc.full);
     // return 8;
 }
 
 fn ld_a_de(self: *Self, _: u8) void {
     self.print("LD A,(DE)\n", .{});
-    a_reg.* = self.memory.read(de.full);
     self.handleDots(4);
+    a_reg.* = self.memory.read(de.full);
     // return 8;
 }
 
 fn ld_hli_a(self: *Self, _: u8) void {
-    self.print("LD (HL+),A\n", .{});
+    self.print("LD (HL+),A ${X:04}\n", .{hl.full});
+    self.handleDots(4);
     self.memory.write(hl.full, a_reg.*);
     // hl.full = @addWithOverflow(hl.full, 1)[0];
     hl.full += 1;
-    self.handleDots(4);
     // return 8;
 }
 
 fn ld_hld_a(self: *Self, _: u8) void {
-    self.print("LD (HL-),A\n", .{});
+    self.print("LD (HL-),A ${X:04}\n", .{hl.full});
+    self.handleDots(4);
     self.memory.write(hl.full, a_reg.*);
     hl.full -= 1;
-    self.handleDots(4);
     // return 8;
 }
 
 fn ld_a_hli(self: *Self, _: u8) void {
-    self.print("LD A,(HL+)\n", .{});
+    self.print("LD A,(HL+) ${X:04}\n", .{hl.full});
+    self.handleDots(4);
     a_reg.* = self.memory.read(hl.full);
     hl.full += 1;
-    self.handleDots(4);
     // return 8;
 }
 
 fn ld_a_hld(self: *Self, _: u8) void {
-    self.print("LD A,(HL-)\n", .{});
+    self.print("LD A,(HL-) ${X:04}\n", .{hl.full});
+    self.handleDots(4);
     a_reg.* = self.memory.read(hl.full);
     hl.full -= 1;
-    self.handleDots(4);
     // return 8;
 }
 
@@ -403,8 +406,8 @@ fn ld_a16_a(self: *Self, _: u8) void {
     const right = self.read();
     const address: u16 = (@as(u16, self.read()) << 8) | right;
     self.print("LD (${X:04}),A\n", .{address});
-    self.memory.write(address, a_reg.*);
     self.handleDots(4);
+    self.memory.write(address, a_reg.*);
     // return 16;
 }
 
@@ -412,24 +415,24 @@ fn ld_a_a16(self: *Self, _: u8) void {
     const right = self.read();
     const address: u16 = (@as(u16, self.read()) << 8) | right;
     self.print("LD A,(${X:04})\n", .{address});
-    a_reg.* = self.memory.read(address);
     self.handleDots(4);
+    a_reg.* = self.memory.read(address);
     // return 16;
 }
 
 fn ldh_c_a(self: *Self, _: u8) void {
     const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
     self.print("LDH (${X:04}),A\n", .{address});
-    self.memory.write(address, a_reg.*);
     self.handleDots(4);
+    self.memory.write(address, a_reg.*);
     // return 8;
 }
 
 fn ldh_a_c(self: *Self, _: u8) void {
     const address: u16 = @as(u16, 0xFF00) + bc.sp.lo;
     self.print("LDH A,(${X:04})\n", .{address});
-    a_reg.* = self.memory.read(address);
     self.handleDots(4);
+    a_reg.* = self.memory.read(address);
     // return 8;
 }
 
@@ -438,11 +441,11 @@ fn ldh_a8_a(self: *Self, _: u8) void {
     const address: u16 = @as(u16, 0xFF00) + displacement;
     self.print("LDH (${X:04}),A\n", .{address});
     if (address >= 0xFF00 and address <= 0xFFFF) {
+        self.handleDots(4);
         self.memory.write(address, a_reg.*);
     } else {
         std.debug.panic("Bad Address", .{});
     }
-    self.handleDots(4);
     // return 12;
 }
 
@@ -451,11 +454,11 @@ fn ldh_a_a8(self: *Self, _: u8) void {
     const address: u16 = @as(u16, 0xFF00) + displacement;
     self.print("LDH A,(${X:04})\n", .{address});
     if (address >= 0xFF00 and address <= 0xFFFF) {
+        self.handleDots(4);
         a_reg.* = self.memory.read(address);
     } else {
         std.debug.panic("Bad Address", .{});
     }
-    self.handleDots(4);
     // return 12;
 }
 
@@ -463,8 +466,8 @@ fn ldh_a_a8(self: *Self, _: u8) void {
 
 fn call_int(self: *Self, address: u16) void {
     push_int(self, self.pc);
-    self.pc = address;
     self.handleDots(4);
+    self.pc = address;
 }
 
 fn call_a16(self: *Self, _: u8) void {
@@ -493,10 +496,10 @@ fn jr_cc_e8(self: *Self, op_code: u8) void {
     const condition = reg_cc[y_offset];
     const displacement = self.read();
     const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + @as(i8, @bitCast(displacement)))));
-    self.print("JR {s},Addr_{x:04}\n", .{ condition, address });
+    self.print("JR {s},Addr_{X:04}\n", .{ condition, address });
     if (self.checkCondition(y_offset)) {
-        self.pc = address;
         self.handleDots(4);
+        self.pc = address;
         // return 12;
     }
     // return 8;
@@ -505,16 +508,16 @@ fn jr_cc_e8(self: *Self, op_code: u8) void {
 fn jr_e8(self: *Self, _: u8) void {
     const displacement: i8 = @bitCast(self.read());
     const address: u16 = @truncate(@as(u17, @bitCast(@as(i17, self.pc) + displacement)));
-    self.print("JR Addr_{x:04}\n", .{address});
-    self.pc = address;
+    self.print("JR Addr_{X:04}\n", .{address});
     self.handleDots(4);
+    self.pc = address;
     // return 12;
 }
 
 fn ret(self: *Self, _: u8) void {
     self.print("RET\n", .{});
-    self.pc = pop_int(self);
     self.handleDots(4);
+    self.pc = pop_int(self);
     // return 16;
 }
 
@@ -540,9 +543,9 @@ fn reti(self: *Self, op_code: u8) void {
 fn jp_a16(self: *Self, _: u8) void {
     const right = self.read();
     const address: u16 = (@as(u16, self.read()) << 8) | right;
-    self.print("JP Addr_{x:04}\n", .{address});
-    self.pc = address;
+    self.print("JP Addr_{X:04}\n", .{address});
     self.handleDots(4);
+    self.pc = address;
     // return 16;
 }
 
@@ -552,17 +555,17 @@ fn jp_cc_a16(self: *Self, op_code: u8) void {
 
     const right = self.read();
     const address: u16 = (@as(u16, self.read()) << 8) | right;
-    self.print("JP {s},Addr_{x:04}\n", .{ condition, address });
+    self.print("JP {s},Addr_{X:04}\n", .{ condition, address });
     if (self.checkCondition(y)) {
-        self.pc = address;
         self.handleDots(4);
+        self.pc = address;
         // return 16;
     }
     // return 12;
 }
 
 fn jp_hl(self: *Self, _: u8) void {
-    self.print("JP HL\n", .{});
+    self.print("JP HL ${X:04}\n", .{hl.full});
     self.pc = hl.full;
     // return 4;
 }
@@ -570,18 +573,18 @@ fn jp_hl(self: *Self, _: u8) void {
 fn rst(self: *Self, op_code: u8) void {
     const y: u3 = @truncate(op_code >> 3);
     const vec: u16 = @as(u16, y) * 8;
-    self.print("RST Addr_{x:04}\n", .{vec});
+    self.print("RST Addr_{X:04}\n", .{vec});
     call_int(self, vec);
     // return 16;
 }
 
 fn push_int(self: *Self, value: u16) void {
     sp -= 1;
+    self.handleDots(4);
     self.memory.write(sp, @truncate(value >> 8));
-    self.handleDots(4);
     sp -= 1;
-    self.memory.write(sp, @truncate(value));
     self.handleDots(4);
+    self.memory.write(sp, @truncate(value));
 }
 
 fn pop_int(self: *Self) u16 {
@@ -637,15 +640,15 @@ fn add_r(self: *Self, op_code: u8) void {
 fn add_hl_rp(self: *Self, op_code: u8) void {
     const p: u2 = @truncate(op_code >> 4);
     const register = reg_p[p];
-    self.print("ADD HL,{s}\n", .{register});
+    self.print("ADD HL,{s} ${X:04}\n", .{ register, hl.full });
     const current_value = reg_p_t[p].*;
+    self.handleDots(4);
     const result = @addWithOverflow(hl.full, current_value);
     const half_result = @addWithOverflow(@as(u12, @truncate(hl.full)), @as(u12, @truncate(current_value)));
     hl.full = result[0];
     flags.n = 0;
     flags.h = half_result[1];
     flags.c = result[1];
-    self.handleDots(4);
     // return 8;
 }
 
@@ -713,9 +716,9 @@ fn dec_rp(self: *Self, op_code: u8) void {
     const register = reg_p[p];
     self.print("DEC {s}\n", .{register});
     const pointer = reg_p_t[p];
+    self.handleDots(4);
     const result = @subWithOverflow(pointer.*, 1);
     pointer.* = result[0];
-    self.handleDots(4);
     // return 8;
 }
 
@@ -746,9 +749,9 @@ fn inc_rp(self: *Self, op_code: u8) void {
     const register = reg_p[p];
     self.print("INC {s}\n", .{register});
     const pointer = reg_p_t[p];
+    self.handleDots(4);
     const result = @addWithOverflow(pointer.*, 1);
     pointer.* = result[0];
-    self.handleDots(4);
     // return 8;
 }
 
@@ -930,9 +933,9 @@ fn xor_int(change: u8) void {
 fn add_sp_e8(self: *Self, _: u8) void {
     const displacement: i8 = @bitCast(self.read());
     self.print("ADD SP,{X:02}\n", .{displacement});
+    self.handleDots(4);
     sp = add_sp_e8_int(self, displacement);
     // return 16;
-    self.handleDots(4);
 }
 
 fn add_sp_e8_int(self: *Self, displacement: i8) u16 {
@@ -949,15 +952,15 @@ fn add_sp_e8_int(self: *Self, displacement: i8) u16 {
 }
 
 fn ld_sp_hl(self: *Self, _: u8) void {
-    self.print("LD SP,HL\n", .{});
-    sp = hl.full;
+    self.print("LD SP,HL ${X:04}\n", .{hl.full});
     self.handleDots(4);
+    sp = hl.full;
     // return 8;
 }
 
 fn ld_hl_sp_e8(self: *Self, _: u8) void {
     const displacement: i8 = @bitCast(self.read());
-    self.print("LD HL,SP+{X:02}\n", .{displacement});
+    self.print("LD HL,SP+{X:02} ${X:04}\n", .{ displacement, hl.full });
     hl.full = add_sp_e8_int(self, displacement);
     // return 12;
 }
@@ -966,10 +969,10 @@ fn ld_a16_sp(self: *Self, _: u8) void {
     const right = self.read();
     const address: u16 = (@as(u16, self.read()) << 8) | right;
     self.print("LD ${X:04},SP\n", .{address});
+    self.handleDots(4);
     self.memory.write(address, @truncate(sp));
     self.handleDots(4);
     self.memory.write(address + 1, @truncate(sp >> 8));
-    self.handleDots(4);
     // return 20;
 }
 

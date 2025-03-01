@@ -33,10 +33,8 @@ pub fn main() !void {
             verbose = true;
         } else if (std.mem.eql(u8, arg, "--debug")) {
             debug = true;
-            should_print = false;
         } else if (std.mem.eql(u8, arg, "--display")) {
             display = true;
-            should_print = false;
         } else if (std.mem.eql(u8, arg, "--log")) {
             log_enabled = true;
         } else if (std.mem.eql(u8, arg, "--mem")) {
@@ -101,7 +99,7 @@ pub fn main() !void {
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing.gb", // Crashed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing2.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing.gb", // Crashed
-        22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing2.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing2.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_sequence.gb", // Failed
@@ -113,11 +111,11 @@ pub fn main() !void {
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/if_ie_registers.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/intr_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_cc_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", // Crashed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", // Passed
+        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/pop_timing.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/push_timing.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/rapid_di_ei.gb", // Failed
@@ -441,6 +439,9 @@ fn runCpu(cpu: *Cpu) !u8 {
         // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
         // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
+    // if (cpu.debug) {
+    //     cpu.should_print = cpu.counter >= 0x000032A0 and cpu.counter <= 0x00004CF5;
+    // }
     if (!cpu.timer.halted) {
         try cpu.logState();
     }
