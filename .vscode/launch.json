@@ -9,7 +9,7 @@
       "request": "launch",
       "name": "Regular",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["22", "--display"],
+      "args": ["15", "--display", "--fast"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },
@@ -18,7 +18,7 @@
       "request": "launch",
       "name": "Debug Verbose",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["22", "--display", "--debug", "--verbose", "--log", "--mem"],
+      "args": ["15", "--display", "--debug", "--verbose", "--log", "--mem"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },

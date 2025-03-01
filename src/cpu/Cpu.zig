@@ -57,18 +57,18 @@ pub fn cycle(self: *Self) u8 {
         dots = op_lookup[op_code](self, op_code);
     }
 
-    self.timer.handleDots(self, dots);
-    self.memory.handleDots(dots);
+    self.handleDots(dots);
     const interrupt_dots = self.handleInterrupts();
-    self.timer.handleDots(self, interrupt_dots);
-    self.memory.handleDots(interrupt_dots);
+    self.handleDots(interrupt_dots);
     return dots + interrupt_dots;
 }
 
+fn handleDots(self: *Self, dots: u8) void {
+    self.timer.handleDots(self, dots);
+    self.memory.handleDots(dots);
+}
+
 pub fn handleInterrupts(self: *Self) u8 {
-    if (self.ime == 0) {
-        return 0;
-    }
     const enabled = self.memory.ie;
     const flag = self.memory.io.getMemoryPointer(0xFF0F);
     if (enabled == 0 or flag.* == 0) {
@@ -101,6 +101,13 @@ fn handleInterrupt(self: *Self, enabled: u8, flag: *u8, shift: u3, address: u16)
     const is_enabled = (enabled >> shift) & 0b1;
     const is_flagged = (flag.* >> shift) & 0b1;
     if (is_enabled == 1 and is_flagged == 1) {
+        if (self.timer.halted) {
+            self.handleDots(4);
+            self.timer.halted = false;
+        }
+        if (self.ime == 0) {
+            return false;
+        }
         self.print("Interrupt: {d}\n", .{shift});
         // @breakpoint();
         self.timer.halted = false;
@@ -213,11 +220,12 @@ pub fn logState(self: *Self) !void {
     if (!self.output_memory) {
         return;
     }
-    try self.log_out.?.print("{X:08} {b:016}-{d:08}-{X:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    try self.log_out.?.print("{X:08} {b:016}-{d:08}-{X:08} {d:08} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
         self.counter,
         self.timer.internal_counter,
         self.timer.internal_counter,
         self.timer.read(0xFF04),
+        self.timer.timer,
         a_reg.*,
         af.sp.flag.full,
         bc.sp.hi,
@@ -237,6 +245,9 @@ pub fn logState(self: *Self) !void {
 
 fn readRegDataValue(self: *Self, index: u8) u8 {
     if (index == 6) {
+        if (hl.full == 0xFF05) {
+            self.print("\nRead Timer: {d}\n\n", .{self.memory.read(hl.full)});
+        }
         return self.memory.read(hl.full);
     } else {
         return reg_8_t[index].*;
@@ -245,6 +256,9 @@ fn readRegDataValue(self: *Self, index: u8) u8 {
 
 fn writeRegDataValue(self: *Self, index: u8, value: u8) void {
     if (index == 6) {
+        if (hl.full == 0xFF05) {
+            self.print("\nWrite Timer: {d}\n\n", .{value});
+        }
         self.memory.write(hl.full, value);
     } else {
         reg_8_t[index].* = value;

@@ -13,6 +13,7 @@ modulo: u8,
 falling_edge: u1,
 tac_enabled: u1,
 clock_bit: u4,
+overflow_counter: u4,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
@@ -27,6 +28,7 @@ pub fn create(
         .falling_edge = 0,
         .tac_enabled = 0,
         .clock_bit = 0,
+        .overflow_counter = 0,
     };
     return timer;
 }
@@ -36,13 +38,22 @@ pub fn handleDots(self: *Self, cpu: *Cpu, starting_dots: u8) void {
     while (dots > 0) : ({
         dots -= 1;
     }) {
+        if (self.overflow_counter > 0) {
+            self.overflow_counter -= 1;
+            if (self.overflow_counter == 0) {
+                // Set timer interrupt
+                cpu.memory.requestInterrupt(2);
+                // Timer modulo
+                self.timer = self.modulo;
+            }
+        }
         const counter_result = @addWithOverflow(self.internal_counter, 1);
         self.internal_counter = counter_result[0];
         handleTimerEdge(self, cpu.memory);
     }
 }
 
-fn handleTimerEdge(self: *Self, memory: *Memory) void {
+fn handleTimerEdge(self: *Self, _: *Memory) void {
     const counter_bit: u1 = @truncate(self.internal_counter >> self.clock_bit);
     const edge_value = self.tac_enabled & counter_bit;
     if (self.falling_edge == 0) {
@@ -51,11 +62,8 @@ fn handleTimerEdge(self: *Self, memory: *Memory) void {
         self.falling_edge = 0;
         const timer_result = @addWithOverflow(self.timer, 1);
         if (timer_result[1] == 1) {
-            // Set timer interrupt
-            memory.requestInterrupt(2);
-            // Timer modulo
-            self.timer = self.modulo;
-            self.halted = false;
+            self.timer = 0;
+            self.overflow_counter = 4;
         } else {
             self.timer = timer_result[0];
         }
