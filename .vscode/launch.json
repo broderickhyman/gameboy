@@ -9,7 +9,7 @@
       "request": "launch",
       "name": "Regular",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["15", "--display", "--fast"],
+      "args": ["22", "--display", "--fast"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },

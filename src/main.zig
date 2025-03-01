@@ -65,9 +65,9 @@ pub fn main() !void {
         11 => "../gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb", // Passed
         12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb", // Passed
         13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
-        14 => "../gb-test-roms/interrupt_time/interrupt_time.gb",
-        15 => "../gb-test-roms/mem_timing/individual/01-read_timing.gb",
-        16 => "../gb-test-roms/mem_timing-2/mem_timing.gb",
+        14 => "../gb-test-roms/interrupt_time/interrupt_time.gb", // Failed
+        15 => "../gb-test-roms/mem_timing/mem_timing.gb", // Passed
+        16 => "../gb-test-roms/mem_timing-2/mem_timing.gb", // Passed
         17 => "../roms/dmg-acid2.gb", // Passed
         18 => "../roms/red.gb",
         19 => "../roms/tetris.gb",
@@ -81,28 +81,51 @@ pub fn main() !void {
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/basic.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/sources-GS.gb", // Failed, need MBC5
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmgABCmgb.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmgABCmgb.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmgABC.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", //
-        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", //
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", //
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/rapid_toggle.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00_div_trigger.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01_div_trigger.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10_div_trigger.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11_div_trigger.gb", // Passed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_reload.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_write_reloading.gb", // Failed
         // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tma_write_reloading.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmgABCmgb.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmgABCmgb.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmgABC.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing2.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing.gb", // Crashed
+        22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing2.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_sequence.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_ei.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_nointr_timing.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing2-GS.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/if_ie_registers.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/intr_timing.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_cc_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/pop_timing.gb", // Passed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/push_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/rapid_di_ei.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ret_cc_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ret_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/reti_intr_timing.gb", // Failed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/reti_timing.gb", // Crashed
+        // 22 => "../mts-20240926-1737-443f6e1/acceptance/rst_timing.gb", // Failed
         else => "",
     };
     var start_pc: u16 = 0x0100;
@@ -117,6 +140,7 @@ pub fn main() !void {
             display = true;
         }
     }
+    std.debug.print("Path: {s}\n", .{path});
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
