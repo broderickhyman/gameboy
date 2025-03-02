@@ -16,9 +16,18 @@
     {
       "type": "lldb",
       "request": "launch",
-      "name": "Debug Verbose",
+      "name": "Debug",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["22", "--display", "--debug", "--log", "--mem"],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Verbose",
+      "program": "${workspaceFolder}/zig-out/bin/gameboy",
+      "args": ["22", "--display", "--debug", "--log", "--mem", "--verbose"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },
@@ -64,15 +73,6 @@
       "name": "Red Fast",
       "program": "${workspaceFolder}/zig-out/bin/gameboy",
       "args": ["18", "--display", "--fast"],
-      "cwd": "${workspaceFolder}",
-      "preLaunchTask": "build"
-    },
-    {
-      "type": "lldb",
-      "request": "launch",
-      "name": "Debug",
-      "program": "${workspaceFolder}/zig-out/bin/gameboy",
-      "args": ["15", "--debug"],
       "cwd": "${workspaceFolder}",
       "preLaunchTask": "build"
     },

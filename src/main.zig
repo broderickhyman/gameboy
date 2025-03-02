@@ -330,6 +330,9 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                 // }
                 try ppu.render(current_dots, &pixel_data);
             }
+            if (cpu.memory.ram_save_requested) {
+                try cpu.saveRam(allocator, file_num);
+            }
             if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});
                 // @breakpoint();
@@ -411,10 +414,6 @@ fn runGameboyDoctor(cpu: *Cpu) !void {
         if (cpu.counter % 100000 == 0) {
             std.debug.print("Counter: {d}\n", .{cpu.counter});
         }
-        // if (cpu.counter > 0x000253C5) {
-        //     cpu.should_print = true;
-        //     cpu.output_memory = true;
-        // }
         _ = try runCpu(cpu);
         if (!cpu.timer.halted) {
             try cpu.logState();
@@ -439,9 +438,9 @@ fn runCpu(cpu: *Cpu) !u8 {
         // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
         // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
-    // if (cpu.debug) {
-    //     cpu.should_print = cpu.counter >= 0x000032A0 and cpu.counter <= 0x00004CF5;
-    // }
+    if (cpu.debug) {
+        // cpu.should_print = cpu.counter >= 0x000032A0 and cpu.counter <= 0x00004CF5;
+    }
     if (!cpu.timer.halted) {
         try cpu.logState();
     }

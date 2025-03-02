@@ -250,8 +250,8 @@ fn readRegDataValue(self: *Self, index: u8) u8 {
             self.print("\nRead Timer: {d}\n\n", .{self.memory.read(hl.full)});
         }
         self.print("Read HL: ${X:04}\n", .{hl.full});
-        self.handleDots(4);
         const value = self.memory.read(hl.full);
+        self.handleDots(4);
         return value;
     } else {
         return reg_8_t[index].*;

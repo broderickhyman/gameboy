@@ -35,6 +35,7 @@ log_out: ?std.fs.File.Writer,
 dma_delay: u8,
 dma_timing: u12,
 dma_running: bool,
+ram_save_requested: bool,
 
 pub fn create(
     allocator: *const std.mem.Allocator,
@@ -102,6 +103,7 @@ pub fn create(
         .dma_delay = 0,
         .dma_timing = 0,
         .dma_running = false,
+        .ram_save_requested = false,
     };
     if (external_ram_banks.items.len > 0) {
         mem.*.external_ram = &external_ram_banks.items[0];
@@ -192,6 +194,7 @@ fn read_int(self: *Self, address: u16) u8 {
 }
 
 pub fn write(self: *Self, address: u16, value: u8) void {
+    // self.breakOnAddress(address);
     switch (address) {
         0xFF46 => {
             // OAM DMA
@@ -210,7 +213,6 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         },
         else => {},
     }
-    // self.breakOnAddress(address);
     if (address <= 0x7FFF) {
         switch (self.mapper) {
             Mapper.None => {},
@@ -253,6 +255,7 @@ fn mbc1_write(self: *Self, address: u16, value: u8) void {
                 self.external_ram_enabled = true;
             } else {
                 self.external_ram_enabled = false;
+                self.ram_save_requested = true;
             }
         },
         0x2000...0x3FFF => {
@@ -290,6 +293,7 @@ fn mbc3_write(self: *Self, address: u16, value: u8) void {
                 self.external_ram_enabled = true;
             } else {
                 self.external_ram_enabled = false;
+                self.ram_save_requested = true;
             }
         },
         0x2000...0x3FFF => {
@@ -333,7 +337,7 @@ fn updateSelectedRam(self: *Self) void {
 
 fn breakOnAddress(_: *Self, address: u16) void {
     switch (address) {
-        // 0xFF05 => @breakpoint(),
+        // 0xFF46 => @breakpoint(),
         // 0xFF04 => @breakpoint(),
         else => {},
     }
@@ -398,6 +402,7 @@ pub fn saveRam(self: *Self, writer: *const std.fs.File.Writer) !void {
     for (self.external_ram_banks) |external_ram_bank| {
         try utils.writeData(writer, &external_ram_bank.data);
     }
+    self.ram_save_requested = false;
 }
 
 fn loadRam(self: *Self, reader: *const std.fs.File.Reader) !void {
@@ -423,6 +428,9 @@ pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
     try writer.writeInt(u8, self.rtc_register, Endian.big);
     try writer.writeInt(u8, self.latch_last_write, Endian.big);
     try writer.writeInt(i64, self.latched_time.unix_sec, Endian.big);
+    try writer.writeInt(u8, self.dma_delay, Endian.big);
+    try writer.writeInt(u16, self.dma_timing, Endian.big);
+    try writer.writeInt(u8, @intFromBool(self.dma_running), Endian.big);
 }
 
 pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
@@ -442,6 +450,9 @@ pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
     self.rtc_register = @truncate(try reader.readInt(u8, Endian.big));
     self.latch_last_write = try reader.readInt(u8, Endian.big);
     self.latched_time = try zdt.Datetime.fromUnix(try reader.readInt(i64, Endian.big), zdt.Duration.Resolution.second, null);
+    self.dma_delay = try reader.readInt(u8, Endian.big);
+    self.dma_timing = @truncate(try reader.readInt(u16, Endian.big));
+    self.dma_running = try reader.readInt(u8, Endian.big) == 1;
 
     self.updateSelectedRom();
     self.updateSelectedRam();

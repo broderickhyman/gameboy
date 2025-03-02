@@ -44,6 +44,11 @@ pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu) !*Self {
 }
 
 pub fn render(self: *Self, dots: u32, pixel_data: *SDL.Texture.PixelData) !void {
+    const lcd_on = (self.lcdc_ptr.* >> 7) == 1;
+    if (!lcd_on) {
+        self.ly_ptr.* = 0;
+        return;
+    }
     const mode_2_length = 80;
     const mode_3_length = 226;
     var current_dots = dots;
@@ -142,10 +147,6 @@ fn setPpuMode(self: *Self, mode: u2) void {
 }
 
 fn renderLine(self: *Self, pixel_data: *SDL.Texture.PixelData) !void {
-    const lcd_on = (self.lcdc_ptr.* >> 7) == 1;
-    if (!lcd_on) {
-        return;
-    }
     var obj_index: usize = 0;
     while (obj_index < self.obj_pixels.len) : (obj_index += 1) {
         self.obj_pixels[obj_index].color_index = 0;

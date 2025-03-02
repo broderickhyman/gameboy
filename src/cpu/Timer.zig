@@ -116,6 +116,7 @@ pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
     try writer.writeInt(u8, self.falling_edge, Endian.big);
     try writer.writeInt(u8, self.tac_enabled, Endian.big);
     try writer.writeInt(u8, self.clock_bit, Endian.big);
+    try writer.writeInt(u8, self.overflow_counter, Endian.big);
 }
 
 pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
@@ -127,4 +128,5 @@ pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
     self.falling_edge = @truncate(try reader.readInt(u8, Endian.big));
     self.tac_enabled = @truncate(try reader.readInt(u8, Endian.big));
     self.clock_bit = @truncate(try reader.readInt(u8, Endian.big));
+    self.overflow_counter = @truncate(try reader.readInt(u8, Endian.big));
 }
