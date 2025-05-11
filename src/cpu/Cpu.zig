@@ -1239,8 +1239,11 @@ fn cb_prefix(self: *Self, _: u8) void {
 
 fn stop(self: *Self, _: u8) void {
     _ = self.read();
+    // const extra = self.read();
+    // self.std_out.print("{X:02}\n", .{extra}) catch unreachable;
     self.print("STOP\n", .{});
-    @breakpoint();
+    // @breakpoint();
+    halt(self, 0);
     // return 0;
 }
 

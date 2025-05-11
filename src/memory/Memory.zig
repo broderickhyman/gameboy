@@ -108,9 +108,10 @@ pub fn create(
     if (external_ram_banks.items.len > 0) {
         mem.*.external_ram = &external_ram_banks.items[0];
     }
+    mem.*.io.write(0xFF01, 0xFF);
     mem.*.io.write(0xFF02, 0x7E);
     mem.*.io.write(0xFF50, 0xFF);
-    mem.*.io.write(0xFF0F, 0xE1);
+    mem.*.io.write(0xFF0F, 0b11100001);
     const mem_data = [_]u8{
         0x80, 0xBF, 0xF3, 0xFF, 0xBF, 0xFF, 0x3F, 0x00,
         0xFF, 0xBF, 0x7F, 0xFF, 0x9F, 0xFF, 0xBF, 0xFF,
@@ -195,6 +196,12 @@ fn read_int(self: *Self, address: u16) u8 {
 
 pub fn write(self: *Self, address: u16, value: u8) void {
     // self.breakOnAddress(address);
+    if (address == 0xFF0F) {
+        // For Alleyway
+        const adjusted = value | (@as(u8, 1) << 3);
+        self.io.write(address, adjusted);
+        return;
+    }
     switch (address) {
         0xFF46 => {
             // OAM DMA
@@ -205,6 +212,9 @@ pub fn write(self: *Self, address: u16, value: u8) void {
         },
         0xFF00 => {
             self.joypad.write(value);
+            return;
+        },
+        0xFF01, 0xFF02 => {
             return;
         },
         0xFF04...0xFF07 => {

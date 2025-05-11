@@ -261,8 +261,11 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     const fps_buf = try allocator.alloc(u8, 10);
     defer allocator.free(fps_buf);
     var frame_counter: u64 = 0;
+    var output_timer = std.time.nanoTimestamp();
 
     const frame_texture = try SDL.createTexture(renderer, SDL.PixelFormatEnum.rgb888, SDL.Texture.Access.streaming, 160, 144);
+
+    printData(cpu);
 
     mainLoop: while (true) {
         frame_counter += 1;
@@ -305,6 +308,11 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                 },
                 else => {},
             }
+        }
+
+        if (start - output_timer > std.time.ns_per_s) {
+            output_timer = std.time.nanoTimestamp();
+            printData(cpu);
         }
 
         try renderer.setColor(SDL.Color.black);
@@ -379,6 +387,16 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     }
 }
 
+fn printData(cpu: *Cpu) void {
+    const first = cpu.memory.read(0xFF01);
+    const second = cpu.memory.read(0xFF02);
+    std.debug.print("0xFF01:{X:02} 0xFF02:{X:02}\n", .{
+        first,
+        second,
+    });
+    std.debug.print("Joy: {b:08}\n", .{cpu.memory.joypad.read()});
+}
+
 fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, tile_x: i16, tile_y: i16) !void {
     const tile_address: u16 = @as(u16, 0x8000) + (@as(u16, tile_index) * 16);
     const colors = [_]u8{ 0xFF, 0xAA, 0x55, 0x00 };
@@ -430,11 +448,11 @@ fn runCpu(cpu: *Cpu) !u8 {
     const serial_enabled = serial_control >> 7 & 1 == 1;
     if (cpu.debug and serial_enabled) {
         // std.debug.print("Serial: {b}\n", .{serial_control});
-        const serial_value = cpu.memory.read(0xFF01);
-        if (serial_value > 0) {
-            std.debug.print("{c}", .{serial_value});
-            cpu.memory.write(0xFF01, 0);
-        }
+        // const serial_value = cpu.memory.read(0xFF01);
+        // if (serial_value > 0) {
+        //     std.debug.print("{c}", .{serial_value});
+        //     cpu.memory.write(0xFF01, 0);
+        // }
         // cpu.memory.read(0xFF02) = (~(@as(u8, 1) << 7)) & serial_control;
         // std.debug.print("Serial: {b}\n", .{cpu.memory.read(0xFF02)});
     }
