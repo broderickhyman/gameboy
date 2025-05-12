@@ -21,8 +21,8 @@ obj_pixels: []Pixel,
 
 pub fn create(allocator: *const std.mem.Allocator, cpu: *Cpu) !*Self {
     const ppu = try allocator.create(Self);
-    const bg_pixels = try allocator.alloc(Pixel, 160);
-    const obj_pixels = try allocator.alloc(Pixel, 160);
+    const bg_pixels = try allocator.alloc(Pixel, 168);
+    const obj_pixels = try allocator.alloc(Pixel, 168);
     const io_memory = cpu.memory.io;
     ppu.* = .{
         .cpu = cpu,
@@ -171,7 +171,7 @@ fn renderLine(self: *Self, pixel_data: *SDL.Texture.PixelData) !void {
     var window_rendered = false;
     const address_mode_8000 = self.getLcdcValue(4);
     var current_x: u8 = 0;
-    while (current_x < 160) : (current_x += 8) {
+    while (current_x < 168) : (current_x += 8) {
         var adjusted_y = fetcher_y;
         var fetcher_x: u8 = undefined;
         var background_tile_address: u16 = 0x9800;
@@ -307,9 +307,10 @@ fn renderLine(self: *Self, pixel_data: *SDL.Texture.PixelData) !void {
         }
     }
     var pixel_index: u8 = 0;
+    const bg_offset = scx & 0b111;
     while (pixel_index < 160) : (pixel_index += 1) {
         const obj_pixel = &self.obj_pixels[pixel_index];
-        const bg_pixel = &self.bg_pixels[pixel_index];
+        const bg_pixel = &self.bg_pixels[pixel_index + bg_offset];
         if (obj_pixel.color_index == 0 or (obj_pixel.priority and bg_pixel.color_index > 0)) {
             try self.drawPixel(pixel_data, bg_pixel, pixel_index);
         } else {
