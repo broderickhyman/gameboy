@@ -261,7 +261,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     const fps_buf = try allocator.alloc(u8, 10);
     defer allocator.free(fps_buf);
     var frame_counter: u64 = 0;
-    var output_timer = std.time.nanoTimestamp();
+    var output_timer = try std.time.Instant.now();
 
     const frame_texture = try SDL.createTexture(renderer, SDL.PixelFormatEnum.rgb888, SDL.Texture.Access.streaming, 160, 144);
 
@@ -269,7 +269,7 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
 
     mainLoop: while (true) {
         frame_counter += 1;
-        const start = std.time.nanoTimestamp();
+        const start = try std.time.Instant.now();
         const joypad = cpu.memory.joypad;
         while (SDL.pollEvent()) |ev| {
             switch (ev) {
@@ -310,8 +310,8 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
             }
         }
 
-        if (start - output_timer > std.time.ns_per_s) {
-            output_timer = std.time.nanoTimestamp();
+        if (start.since(output_timer) > std.time.ns_per_s) {
+            output_timer = try std.time.Instant.now();
             printData(cpu);
         }
 
@@ -369,12 +369,15 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
         try renderer.copy(texture, text_rect, null);
         renderer.present();
 
-        const end = std.time.nanoTimestamp();
-        var elapsed = end - start;
-        if (!fast and elapsed <= ideal_frame_time) {
+        const end = try std.time.Instant.now();
+        var elapsed = end.since(start);
+        if (!fast and elapsed < ideal_frame_time) {
             const delay: u64 = @intCast(ideal_frame_time - elapsed);
             // if (frame_counter % 10 == 0) {
-            //     std.debug.print("Delay: {d}\n", .{@divTrunc(delay, std.time.ns_per_ms)});
+            // std.debug.print("Elapsed: {d}, Delay: {d}\n", .{
+            //     @divTrunc(elapsed, std.time.ns_per_ms),
+            //     @divTrunc(delay, std.time.ns_per_ms),
+            // });
             // }
             elapsed += delay;
             std.Thread.sleep(delay);
@@ -387,14 +390,15 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
     }
 }
 
-fn printData(cpu: *Cpu) void {
-    const first = cpu.memory.read(0xFF01);
-    const second = cpu.memory.read(0xFF02);
-    std.debug.print("0xFF01:{X:02} 0xFF02:{X:02}\n", .{
-        first,
-        second,
-    });
-    std.debug.print("Joy: {b:08}\n", .{cpu.memory.joypad.read()});
+fn printData(_: *Cpu) void {
+    // fn printData(cpu: *Cpu) void {
+    // const first = cpu.memory.read(0xFF01);
+    // const second = cpu.memory.read(0xFF02);
+    // std.debug.print("0xFF01:{X:02} 0xFF02:{X:02}\n", .{
+    //     first,
+    //     second,
+    // });
+    // std.debug.print("Joy: {b:08}\n", .{cpu.memory.joypad.read()});
 }
 
 fn renderTile(renderer: *SDL.Renderer, cpu: *Cpu, tile_index: u16, tile_x: i16, tile_y: i16) !void {
