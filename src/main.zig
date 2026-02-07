@@ -6,6 +6,7 @@ const Memory = @import("memory/Memory.zig");
 const Timer = @import("cpu/Timer.zig");
 const Mapper = @import("utils.zig").Mapper;
 const utils = @import("utils.zig");
+const TestConfig = @import("TestConfig.zig");
 
 // ./zig-out/bin/gameboy 2 | ../gameboy-doctor/gameboy-doctor - cpu_instrs 2
 
@@ -23,12 +24,14 @@ pub fn main() !void {
     var debug = false;
     var log_enabled = false;
     var should_print = false;
-    var file_num: u8 = 7;
-    var args_index: u3 = 1;
+    var test_num: ?u8 = null;
+    var custom_rom_path: ?[]const u8 = null;
+    var args_index: usize = 1;
     var is_doctor_test = false;
     var display = false;
     var output_memory = false;
     var fast = false;
+
     while (args_index < args.len) : (args_index += 1) {
         const arg = args[args_index];
         if (std.mem.eql(u8, arg, "--verbose")) {
@@ -43,102 +46,56 @@ pub fn main() !void {
             output_memory = true;
         } else if (std.mem.eql(u8, arg, "--fast")) {
             fast = true;
-        } else {
-            file_num = try std.fmt.parseInt(u8, arg, 10);
+        } else if (std.mem.eql(u8, arg, "--test")) {
+            args_index += 1;
+            if (args_index < args.len) {
+                test_num = try std.fmt.parseInt(u8, args[args_index], 10);
+            }
+        } else if (std.mem.eql(u8, arg, "--rom")) {
+            args_index += 1;
+            if (args_index < args.len) {
+                custom_rom_path = args[args_index];
+            }
         }
+    }
+
+    if (test_num == null and custom_rom_path == null) {
+        std.debug.print("Error: Must provide either --test <num> or --rom <path>\n", .{});
+        return;
     }
     if (verbose) {
         should_print = true;
     }
-    const path: []const u8 = switch (file_num) {
-        0 => "roms/dmg_boot.bin",
-        1 => "../gb-test-roms/cpu_instrs/individual/01-special.gb", // Passed
-        2 => "../gb-test-roms/cpu_instrs/individual/02-interrupts.gb", // Passed using display, not cli
-        3 => "../gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb", // Passed
-        4 => "../gb-test-roms/cpu_instrs/individual/04-op r,imm.gb", // Passed
-        5 => "../gb-test-roms/cpu_instrs/individual/05-op rp.gb", // Passed
-        6 => "../gb-test-roms/cpu_instrs/individual/06-ld r,r.gb", // Passed
-        7 => "../gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb", // Passed
-        8 => "../gb-test-roms/cpu_instrs/individual/08-misc instrs.gb", // Passed
-        9 => "../gb-test-roms/cpu_instrs/individual/09-op r,r.gb", // Passed
-        10 => "../gb-test-roms/cpu_instrs/individual/10-bit ops.gb", // Passed
-        11 => "../gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb", // Passed
-        12 => "../gb-test-roms/cpu_instrs/cpu_instrs.gb", // Passed
-        13 => "../gb-test-roms/instr_timing/instr_timing.gb", // Passed
-        14 => "../gb-test-roms/interrupt_time/interrupt_time.gb", // Failed
-        15 => "../gb-test-roms/mem_timing/mem_timing.gb", // Passed
-        16 => "../gb-test-roms/mem_timing-2/mem_timing.gb", // Passed
-        17 => "../roms/dmg-acid2.gb", // Passed
-        18 => "./roms/red.gb",
-        19 => "../roms/tetris.gb",
-        20 => "../roms/sml.gb",
-        21 => "../roms/alleyway.gb",
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/mem_oam.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/reg_f.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/bits/unused_hwio-GS.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/instr/daa.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/interrupts/ie_push.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/basic.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma/sources-GS.gb", // Failed, need MBC5
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/rapid_toggle.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim00_div_trigger.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim01_div_trigger.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim10_div_trigger.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tim11_div_trigger.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_reload.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tima_write_reloading.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/timer/tma_write_reloading.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmgABCmgb.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmgABCmgb.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmgABC.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing2.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/call_timing2.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_sequence.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_ei.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_nointr_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing2-GS.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/if_ie_registers.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/intr_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_cc_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb", // Passed
-        22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/pop_timing.gb", // Passed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/push_timing.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/rapid_di_ei.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ret_cc_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/ret_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/reti_intr_timing.gb", // Failed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/reti_timing.gb", // Crashed
-        // 22 => "../mts-20240926-1737-443f6e1/acceptance/rst_timing.gb", // Failed
-        else => "",
-    };
+
+    var test_suite = try TestConfig.parseTestSuite(gpa_allocator, "test_suite.json");
+    defer test_suite.deinit();
+
+    var path: []const u8 = undefined;
     var start_pc: u16 = 0x0100;
-    if (file_num == 0) {
-        start_pc = 0;
-    } else if (file_num <= 11) {
-        is_doctor_test = !display;
-    } else {
-        if (file_num < 17) {
-            is_doctor_test = !display;
-        } else {
+    var actual_test_num: u8 = 0;
+
+    if (test_num) |t| {
+        const entry = test_suite.findById(t) orelse {
+            std.debug.print("Error: Test ID {d} not found\n", .{t});
+            return;
+        };
+        path = entry.path;
+        start_pc = entry.getStartPc();
+        actual_test_num = t;
+        std.debug.print("Test: {s}\n", .{entry.name});
+
+        if (entry.type == TestConfig.TestType.display_test or
+            entry.type == TestConfig.TestType.boot_rom) {
             display = true;
         }
+
+        is_doctor_test = entry.isDoctorTest(display);
+    } else if (custom_rom_path) |rom_path| {
+        path = rom_path;
+        start_pc = 0x0100;
+        actual_test_num = 255;
+        display = true;
+        std.debug.print("Custom ROM: {s}\n", .{rom_path});
     }
     std.debug.print("Path: {s}\n", .{path});
     const file = try std.fs.cwd().openFile(path, .{});
@@ -201,7 +158,7 @@ pub fn main() !void {
 
     const timer = try Timer.create(&gpa_allocator);
 
-    const memory = try Memory.create(&gpa_allocator, timer, file_data, bank_count, ram_size, mapper, file_num, log_out);
+    const memory = try Memory.create(&gpa_allocator, timer, file_data, bank_count, ram_size, mapper, actual_test_num, log_out);
 
     const cpu = try Cpu.create(&gpa_allocator, memory, timer, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
@@ -212,17 +169,17 @@ pub fn main() !void {
     cpu.is_doctor_test = is_doctor_test;
     cpu.output_memory = output_memory;
 
-    if (file_num == 0) {
+    if (actual_test_num == 0) {
         fakeCartridge(cpu);
     }
     if (display) {
-        try runDisplay(cpu, file_num, &gpa_allocator, fast);
+        try runDisplay(cpu, actual_test_num, &gpa_allocator, fast);
     } else {
         try runGameboyDoctor(cpu);
     }
 }
 
-fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast: bool) !void {
+fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast: bool) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -302,9 +259,9 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                         SDL.Keycode.left => joypad.left = 1,
                         SDL.Keycode.right => joypad.right = 1,
                         SDL.Keycode.p, SDL.Keycode.escape => cpu.paused = !cpu.paused,
-                        SDL.Keycode.r => try cpu.saveRam(allocator, file_num),
-                        SDL.Keycode.u => try cpu.saveState(allocator, file_num),
-                        SDL.Keycode.l => try cpu.loadState(allocator, file_num),
+                        SDL.Keycode.r => try cpu.saveRam(allocator, test_num),
+                        SDL.Keycode.u => try cpu.saveState(allocator, test_num),
+                        SDL.Keycode.l => try cpu.loadState(allocator, test_num),
                         else => {},
                     }
                 },
@@ -341,9 +298,9 @@ fn runDisplay(cpu: *Cpu, file_num: u8, allocator: *const std.mem.Allocator, fast
                 try ppu.render(current_dots, &pixel_data);
             }
             if (cpu.memory.ram_save_requested) {
-                try cpu.saveRam(allocator, file_num);
+                try cpu.saveRam(allocator, test_num);
             }
-            if (file_num == 0 and cpu.memory.read(0xFF50) > 0) {
+            if (test_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});
                 // @breakpoint();
                 run_cpu = false;

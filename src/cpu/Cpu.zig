@@ -132,11 +132,11 @@ fn read(self: *Self) u8 {
     return memory_value;
 }
 
-pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
     if (self.memory.external_ram_banks.len == 0) {
         return;
     }
-    const file = try utils.openFileWrite(allocator, file_num, "ram.bin");
+    const file = try utils.openFileWrite(allocator, test_num, "ram.bin");
     defer file.close();
     const buffer = try allocator.alloc(u8, 1000);
     defer allocator.free(buffer);
@@ -144,9 +144,9 @@ pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !
     try self.memory.saveRam(&writer);
 }
 
-pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
     // self.paused = true;
-    const file = try utils.openFileWrite(allocator, file_num, "state.bin");
+    const file = try utils.openFileWrite(allocator, test_num, "state.bin");
     defer file.close();
     const buffer = try allocator.alloc(u8, 2000);
     defer allocator.free(buffer);
@@ -164,9 +164,9 @@ pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8)
     try self.timer.saveState(&writer);
 }
 
-pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
+pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
     // self.paused = true;
-    const file = try utils.openFileRead(allocator, file_num, "state.bin");
+    const file = try utils.openFileRead(allocator, test_num, "state.bin");
     defer file.close();
     const buffer = try allocator.alloc(u8, 2000);
     defer allocator.free(buffer);

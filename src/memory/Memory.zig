@@ -44,7 +44,7 @@ pub fn create(
     bank_count: u9,
     ram_size: u8,
     mapper: Mapper,
-    file_num: u8,
+    test_num: u8,
     log_out: ?std.fs.File.Writer,
 ) !*Self {
     var rom_banks = std.array_list.Managed(RomBank).init(allocator.*);
@@ -61,7 +61,7 @@ pub fn create(
     const ram_banks = ram_size / 8;
     if (ram_banks > 0) {
         var reader: ?std.fs.File.Reader = null;
-        if (utils.openFileRead(allocator, file_num, "ram.bin")) |file_open| {
+        if (utils.openFileRead(allocator, test_num, "ram.bin")) |file_open| {
             const buf = try allocator.alloc(u8, 1000);
             defer allocator.free(buf);
             reader = file_open.reader(buf);

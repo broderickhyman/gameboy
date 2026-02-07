@@ -1,0 +1,572 @@
+{
+  "tests": [
+    {
+      "test_id": 0,
+      "path": "roms/dmg_boot.bin",
+      "name": "DMG Boot ROM",
+      "type": "boot_rom",
+      "pass_status": "passed",
+      "notes": "Bootstrap ROM, test harness verification"
+    },
+    {
+      "test_id": 1,
+      "path": "../gb-test-roms/cpu_instrs/individual/01-special.gb",
+      "name": "CPU Instructions: 01-special",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 2,
+      "path": "../gb-test-roms/cpu_instrs/individual/02-interrupts.gb",
+      "name": "CPU Instructions: 02-interrupts",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": "Passed using display, not cli"
+    },
+    {
+      "test_id": 3,
+      "path": "../gb-test-roms/cpu_instrs/individual/03-op sp,hl.gb",
+      "name": "CPU Instructions: 03-op sp,hl",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 4,
+      "path": "../gb-test-roms/cpu_instrs/individual/04-op r,imm.gb",
+      "name": "CPU Instructions: 04-op r,imm",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 5,
+      "path": "../gb-test-roms/cpu_instrs/individual/05-op rp.gb",
+      "name": "CPU Instructions: 05-op rp",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 6,
+      "path": "../gb-test-roms/cpu_instrs/individual/06-ld r,r.gb",
+      "name": "CPU Instructions: 06-ld r,r",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 7,
+      "path": "../gb-test-roms/cpu_instrs/individual/07-jr,jp,call,ret,rst.gb",
+      "name": "CPU Instructions: 07-jr,jp,call,ret,rst",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 8,
+      "path": "../gb-test-roms/cpu_instrs/individual/08-misc instrs.gb",
+      "name": "CPU Instructions: 08-misc instrs",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 9,
+      "path": "../gb-test-roms/cpu_instrs/individual/09-op r,r.gb",
+      "name": "CPU Instructions: 09-op r,r",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 10,
+      "path": "../gb-test-roms/cpu_instrs/individual/10-bit ops.gb",
+      "name": "CPU Instructions: 10-bit ops",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 11,
+      "path": "../gb-test-roms/cpu_instrs/individual/11-op a,(hl).gb",
+      "name": "CPU Instructions: 11-op a,(hl)",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 12,
+      "path": "../gb-test-roms/cpu_instrs/cpu_instrs.gb",
+      "name": "CPU Instructions: full suite",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 13,
+      "path": "../gb-test-roms/instr_timing/instr_timing.gb",
+      "name": "Instruction Timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 14,
+      "path": "../gb-test-roms/interrupt_time/interrupt_time.gb",
+      "name": "Interrupt Timing",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 15,
+      "path": "../gb-test-roms/mem_timing/mem_timing.gb",
+      "name": "Memory Timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 16,
+      "path": "../gb-test-roms/mem_timing-2/mem_timing.gb",
+      "name": "Memory Timing 2",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 17,
+      "path": "../roms/dmg-acid2.gb",
+      "name": "DMG ACID2",
+      "type": "display_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 18,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/bits/mem_oam.gb",
+      "name": "MTS: bits/mem_oam",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 19,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/bits/reg_f.gb",
+      "name": "MTS: bits/reg_f",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 20,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/bits/unused_hwio-GS.gb",
+      "name": "MTS: bits/unused_hwio-GS",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 21,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/instr/daa.gb",
+      "name": "MTS: instr/daa",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 22,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/interrupts/ie_push.gb",
+      "name": "MTS: interrupts/ie_push",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 23,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma/basic.gb",
+      "name": "MTS: oam_dma/basic",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 24,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma/reg_read.gb",
+      "name": "MTS: oam_dma/reg_read",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 25,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma/sources-GS.gb",
+      "name": "MTS: oam_dma/sources-GS",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": "Need MBC5"
+    },
+    {
+      "test_id": 26,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/div_write.gb",
+      "name": "MTS: timer/div_write",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 27,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/rapid_toggle.gb",
+      "name": "MTS: timer/rapid_toggle",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 28,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim00.gb",
+      "name": "MTS: timer/tim00",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 29,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim00_div_trigger.gb",
+      "name": "MTS: timer/tim00_div_trigger",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 30,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim01.gb",
+      "name": "MTS: timer/tim01",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 31,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim01_div_trigger.gb",
+      "name": "MTS: timer/tim01_div_trigger",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 32,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim10.gb",
+      "name": "MTS: timer/tim10",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 33,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim10_div_trigger.gb",
+      "name": "MTS: timer/tim10_div_trigger",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 34,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim11.gb",
+      "name": "MTS: timer/tim11",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 35,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tim11_div_trigger.gb",
+      "name": "MTS: timer/tim11_div_trigger",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 36,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tima_reload.gb",
+      "name": "MTS: timer/tima_reload",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 37,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tima_write_reloading.gb",
+      "name": "MTS: timer/tima_write_reloading",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 38,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/timer/tma_write_reloading.gb",
+      "name": "MTS: timer/tma_write_reloading",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 39,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/add_sp_e_timing.gb",
+      "name": "MTS: add_sp_e_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 40,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/boot_div-dmgABCmgb.gb",
+      "name": "MTS: boot_div-dmgABCmgb",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 41,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/boot_hwio-dmgABCmgb.gb",
+      "name": "MTS: boot_hwio-dmgABCmgb",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 42,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/boot_regs-dmgABC.gb",
+      "name": "MTS: boot_regs-dmgABC",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 43,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing.gb",
+      "name": "MTS: call_cc_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 44,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/call_cc_timing2.gb",
+      "name": "MTS: call_cc_timing2",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 45,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/call_timing.gb",
+      "name": "MTS: call_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 46,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/call_timing2.gb",
+      "name": "MTS: call_timing2",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 47,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/di_timing-GS.gb",
+      "name": "MTS: di_timing-GS",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 48,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/div_timing.gb",
+      "name": "MTS: div_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 49,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/ei_sequence.gb",
+      "name": "MTS: ei_sequence",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 50,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/ei_timing.gb",
+      "name": "MTS: ei_timing",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 51,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_ei.gb",
+      "name": "MTS: halt_ime0_ei",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 52,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/halt_ime0_nointr_timing.gb",
+      "name": "MTS: halt_ime0_nointr_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 53,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing.gb",
+      "name": "MTS: halt_ime1_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 54,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/halt_ime1_timing2-GS.gb",
+      "name": "MTS: halt_ime1_timing2-GS",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 55,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/if_ie_registers.gb",
+      "name": "MTS: if_ie_registers",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 56,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/intr_timing.gb",
+      "name": "MTS: intr_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 57,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/jp_cc_timing.gb",
+      "name": "MTS: jp_cc_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 58,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/jp_timing.gb",
+      "name": "MTS: jp_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 59,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/ld_hl_sp_e_timing.gb",
+      "name": "MTS: ld_hl_sp_e_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 60,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma_restart.gb",
+      "name": "MTS: oam_dma_restart",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 61,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma_start.gb",
+      "name": "MTS: oam_dma_start",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 62,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/oam_dma_timing.gb",
+      "name": "MTS: oam_dma_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 63,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/pop_timing.gb",
+      "name": "MTS: pop_timing",
+      "type": "doctor_test",
+      "pass_status": "passed",
+      "notes": ""
+    },
+    {
+      "test_id": 64,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/push_timing.gb",
+      "name": "MTS: push_timing",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 65,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/rapid_di_ei.gb",
+      "name": "MTS: rapid_di_ei",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 66,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/ret_cc_timing.gb",
+      "name": "MTS: ret_cc_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 67,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/ret_timing.gb",
+      "name": "MTS: ret_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 68,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/reti_intr_timing.gb",
+      "name": "MTS: reti_intr_timing",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    },
+    {
+      "test_id": 69,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/reti_timing.gb",
+      "name": "MTS: reti_timing",
+      "type": "doctor_test",
+      "pass_status": "crashed",
+      "notes": ""
+    },
+    {
+      "test_id": 70,
+      "path": "../mts-20240926-1737-443f6e1/acceptance/rst_timing.gb",
+      "name": "MTS: rst_timing",
+      "type": "doctor_test",
+      "pass_status": "failed",
+      "notes": ""
+    }
+  ]
+}
