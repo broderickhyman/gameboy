@@ -15,7 +15,7 @@ pub fn main() !void {
 
     const stdout_buffer = gpa_allocator.alloc(u8, 100) catch unreachable;
     defer gpa_allocator.free(stdout_buffer);
-    const std_out = std.fs.File.stdout().writer(stdout_buffer).interface;
+    const std_out = std.fs.File.stdout().writer(stdout_buffer);
 
     const args = try std.process.argsAlloc(gpa_allocator);
     defer std.process.argsFree(gpa_allocator, args);
@@ -69,7 +69,7 @@ pub fn main() !void {
         15 => "../gb-test-roms/mem_timing/mem_timing.gb", // Passed
         16 => "../gb-test-roms/mem_timing-2/mem_timing.gb", // Passed
         17 => "../roms/dmg-acid2.gb", // Passed
-        18 => "../roms/red.gb",
+        18 => "./roms/red.gb",
         19 => "../roms/tetris.gb",
         20 => "../roms/sml.gb",
         21 => "../roms/alleyway.gb",

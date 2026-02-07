@@ -63,16 +63,24 @@ pub fn getFilePath(allocator: *const std.mem.Allocator, file_num: u8, file_name:
     return result;
 }
 
-pub fn writeData(writer: *const std.fs.File.Writer, data: *const []u8) !void {
-    const bytes_written = try writer.write(data.*);
-    if (bytes_written != data.len) {
-        std.debug.panic("Did not write all bytes", .{});
-    }
+pub fn writeData(writer: *std.fs.File.Writer, data: *const []u8) !void {
+    try writer.interface.writeAll(data.*);
 }
 
 pub fn readData(reader: *std.fs.File.Reader, data: *const []u8) !void {
-    const bytes_read = try reader.interface.readSliceAll(data.*);
-    if (bytes_read != data.len) {
-        std.debug.panic("Did not read all bytes", .{});
-    }
+    try reader.interface.readSliceAll(data.*);
+}
+
+pub fn writeInt(writer: *std.fs.File.Writer, comptime T: type, value: T, endian: std.builtin.Endian) !void {
+    var buf: [8]u8 = undefined;
+    const size = @sizeOf(T);
+    std.mem.writeInt(T, buf[0..size], value, endian);
+    try writer.interface.writeAll(buf[0..size]);
+}
+
+pub fn readInt(reader: *std.fs.File.Reader, comptime T: type, endian: std.builtin.Endian) !T {
+    var buf: [8]u8 = undefined;
+    const size = @sizeOf(T);
+    try reader.interface.readSliceAll(buf[0..size]);
+    return std.mem.readInt(T, buf[0..size], endian);
 }

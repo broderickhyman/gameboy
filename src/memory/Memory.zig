@@ -71,8 +71,8 @@ pub fn create(
         }
         while (counter < ram_banks) : (counter += 1) {
             const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
-            if (reader) |optional| {
-                try utils.readData(&optional, &new_ram.data);
+            if (reader) |*optional| {
+                try utils.readData(optional, &new_ram.data);
             }
             try external_ram_banks.append(new_ram.*);
         }
@@ -163,11 +163,12 @@ fn read_int(self: *Self, address: u16) u8 {
         0x8000...0x9FFF => self.vram.read(address),
         0xA000...0xBFFF => {
             if (self.rtc_register > 0) {
+                const time = self.latched_time.time();
                 switch (self.rtc_register) {
-                    8 => return self.latched_time.second,
-                    9 => return self.latched_time.minute,
-                    0xA => return self.latched_time.hour,
-                    0xB => return @truncate(self.latched_time.dayOfYear()),
+                    8 => return time.second,
+                    9 => return time.minute,
+                    0xA => return time.hour,
+                    0xB => return time.day,
                     0xC => {
                         // TODO
                         return 0;
@@ -327,7 +328,7 @@ fn mbc3_write(self: *Self, address: u16, value: u8) void {
         },
         0x6000...0x7FFF => {
             if (self.latch_last_write == 0 and value == 1) {
-                self.latched_time = try zeit.instant(.{});
+                self.latched_time = zeit.instant(.{}) catch unreachable;
             }
             self.latch_last_write = value;
         },
@@ -405,66 +406,68 @@ pub fn requestInterrupt(self: *Self, bit_num: u3) void {
 }
 
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
-    if (self.log_out) |log_out| {
-        log_out.print(fmt, args) catch std.debug.panic("Could not print.", .{});
+    if (self.log_out) |*log_out| {
+        var buffer: [256]u8 = undefined;
+        const printed = std.fmt.bufPrint(&buffer, fmt, args) catch return;
+        log_out.interface.writeAll(printed) catch std.debug.panic("Could not print.", .{});
     }
 }
 
-pub fn saveRam(self: *Self, writer: *const std.fs.File.Writer) !void {
+pub fn saveRam(self: *Self, writer: *std.fs.File.Writer) !void {
     for (self.external_ram_banks) |external_ram_bank| {
         try utils.writeData(writer, &external_ram_bank.data);
     }
     self.ram_save_requested = false;
 }
 
-fn loadRam(self: *Self, reader: *const std.fs.File.Reader) !void {
+fn loadRam(self: *Self, reader: *std.fs.File.Reader) !void {
     for (self.external_ram_banks) |external_ram_bank| {
         try utils.readData(reader, &external_ram_bank.data);
     }
 }
 
-pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
-    try writer.writeInt(u8, self.selected_rom, Endian.big);
+pub fn saveState(self: *Self, writer: *std.fs.File.Writer) !void {
+    try utils.writeInt(writer, u8, self.selected_rom, Endian.big);
     try utils.writeData(writer, &self.vram.data);
     try self.saveRam(writer);
-    try writer.writeInt(u8, @intFromBool(self.external_ram_enabled), Endian.big);
-    try writer.writeInt(u8, self.selected_external_ram, Endian.big);
+    try utils.writeInt(writer, u8, @intFromBool(self.external_ram_enabled), Endian.big);
+    try utils.writeInt(writer, u8, self.selected_external_ram, Endian.big);
     try utils.writeData(writer, &self.wram_1.data);
     try utils.writeData(writer, &self.wram_2.data);
     try utils.writeData(writer, &self.oam.data);
     try utils.writeData(writer, &self.io.data);
     try utils.writeData(writer, &self.hram.data);
-    try writer.writeInt(u8, self.ie, Endian.big);
+    try utils.writeInt(writer, u8, self.ie, Endian.big);
     try self.joypad.saveState(writer);
-    try writer.writeInt(u8, self.banking_mode, Endian.big);
-    try writer.writeInt(u8, self.rtc_register, Endian.big);
-    try writer.writeInt(u8, self.latch_last_write, Endian.big);
-    try writer.writeInt(i64, self.latched_time.unixTimestamp(), Endian.big);
-    try writer.writeInt(u8, self.dma_delay, Endian.big);
-    try writer.writeInt(u16, self.dma_timing, Endian.big);
-    try writer.writeInt(u8, @intFromBool(self.dma_running), Endian.big);
+    try utils.writeInt(writer, u8, self.banking_mode, Endian.big);
+    try utils.writeInt(writer, u8, self.rtc_register, Endian.big);
+    try utils.writeInt(writer, u8, self.latch_last_write, Endian.big);
+    try utils.writeInt(writer, i64, self.latched_time.unixTimestamp(), Endian.big);
+    try utils.writeInt(writer, u8, self.dma_delay, Endian.big);
+    try utils.writeInt(writer, u16, self.dma_timing, Endian.big);
+    try utils.writeInt(writer, u8, @intFromBool(self.dma_running), Endian.big);
 }
 
-pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
-    self.selected_rom = @truncate(try reader.readInt(u8, Endian.big));
+pub fn loadState(self: *Self, reader: *std.fs.File.Reader) !void {
+    self.selected_rom = @truncate(try utils.readInt(reader, u8, Endian.big));
     try utils.readData(reader, &self.vram.data);
     try self.loadRam(reader);
-    self.external_ram_enabled = try reader.readInt(u8, Endian.big) == 1;
-    self.selected_external_ram = @truncate(try reader.readInt(u8, Endian.big));
+    self.external_ram_enabled = (try utils.readInt(reader, u8, Endian.big)) == 1;
+    self.selected_external_ram = @truncate(try utils.readInt(reader, u8, Endian.big));
     try utils.readData(reader, &self.wram_1.data);
     try utils.readData(reader, &self.wram_2.data);
     try utils.readData(reader, &self.oam.data);
     try utils.readData(reader, &self.io.data);
     try utils.readData(reader, &self.hram.data);
-    self.ie = try reader.readInt(u8, Endian.big);
+    self.ie = try utils.readInt(reader, u8, Endian.big);
     try self.joypad.loadState(reader);
-    self.banking_mode = @truncate(try reader.readInt(u8, Endian.big));
-    self.rtc_register = @truncate(try reader.readInt(u8, Endian.big));
-    self.latch_last_write = try reader.readInt(u8, Endian.big);
-    self.latched_time = try zeit.instant(.{ .source = .{ .unix_timestamp = try reader.readInt(i64, Endian.big) } });
-    self.dma_delay = try reader.readInt(u8, Endian.big);
-    self.dma_timing = @truncate(try reader.readInt(u16, Endian.big));
-    self.dma_running = try reader.readInt(u8, Endian.big) == 1;
+    self.banking_mode = @truncate(try utils.readInt(reader, u8, Endian.big));
+    self.rtc_register = @truncate(try utils.readInt(reader, u8, Endian.big));
+    self.latch_last_write = try utils.readInt(reader, u8, Endian.big);
+    self.latched_time = try zeit.instant(.{ .source = .{ .unix_timestamp = try utils.readInt(reader, i64, Endian.big) } });
+    self.dma_delay = try utils.readInt(reader, u8, Endian.big);
+    self.dma_timing = @truncate(try utils.readInt(reader, u16, Endian.big));
+    self.dma_running = (try utils.readInt(reader, u8, Endian.big)) == 1;
 
     self.updateSelectedRom();
     self.updateSelectedRam();

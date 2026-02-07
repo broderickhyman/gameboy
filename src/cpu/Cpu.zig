@@ -138,23 +138,28 @@ pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !
     }
     const file = try utils.openFileWrite(allocator, file_num, "ram.bin");
     defer file.close();
-    try self.memory.saveRam(&file.writer());
+    const buffer = try allocator.alloc(u8, 1000);
+    defer allocator.free(buffer);
+    var writer = file.writer(buffer);
+    try self.memory.saveRam(&writer);
 }
 
 pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8) !void {
     // self.paused = true;
     const file = try utils.openFileWrite(allocator, file_num, "state.bin");
     defer file.close();
-    const writer = file.writer();
-    try writer.writeInt(u16, af.af, Endian.big);
-    try writer.writeInt(u16, bc.full, Endian.big);
-    try writer.writeInt(u16, de.full, Endian.big);
-    try writer.writeInt(u16, hl.full, Endian.big);
-    try writer.writeInt(u16, sp, Endian.big);
-    try writer.writeInt(u16, self.pc, Endian.big);
-    try writer.writeInt(u32, self.counter, Endian.big);
-    try writer.writeInt(u8, self.ime, Endian.big);
-    try writer.writeInt(u8, @intFromBool(self.paused), Endian.big);
+    const buffer = try allocator.alloc(u8, 2000);
+    defer allocator.free(buffer);
+    var writer = file.writer(buffer);
+    try utils.writeInt(&writer, u16, af.af, Endian.big);
+    try utils.writeInt(&writer, u16, bc.full, Endian.big);
+    try utils.writeInt(&writer, u16, de.full, Endian.big);
+    try utils.writeInt(&writer, u16, hl.full, Endian.big);
+    try utils.writeInt(&writer, u16, sp, Endian.big);
+    try utils.writeInt(&writer, u16, self.pc, Endian.big);
+    try utils.writeInt(&writer, u32, self.counter, Endian.big);
+    try utils.writeInt(&writer, u8, self.ime, Endian.big);
+    try utils.writeInt(&writer, u8, @intFromBool(self.paused), Endian.big);
     try self.memory.saveState(&writer);
     try self.timer.saveState(&writer);
 }
@@ -163,16 +168,18 @@ pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, file_num: u8)
     // self.paused = true;
     const file = try utils.openFileRead(allocator, file_num, "state.bin");
     defer file.close();
-    const reader = file.reader();
-    af.af = try reader.readInt(u16, Endian.big);
-    bc.full = try reader.readInt(u16, Endian.big);
-    de.full = try reader.readInt(u16, Endian.big);
-    hl.full = try reader.readInt(u16, Endian.big);
-    sp = try reader.readInt(u16, Endian.big);
-    self.pc = try reader.readInt(u16, Endian.big);
-    self.counter = try reader.readInt(u32, Endian.big);
-    self.ime = @truncate(try reader.readInt(u8, Endian.big));
-    self.paused = try reader.readInt(u8, Endian.big) == 1;
+    const buffer = try allocator.alloc(u8, 2000);
+    defer allocator.free(buffer);
+    var reader = file.reader(buffer);
+    af.af = try utils.readInt(&reader, u16, Endian.big);
+    bc.full = try utils.readInt(&reader, u16, Endian.big);
+    de.full = try utils.readInt(&reader, u16, Endian.big);
+    hl.full = try utils.readInt(&reader, u16, Endian.big);
+    sp = try utils.readInt(&reader, u16, Endian.big);
+    self.pc = try utils.readInt(&reader, u16, Endian.big);
+    self.counter = try utils.readInt(&reader, u32, Endian.big);
+    self.ime = @truncate(try utils.readInt(&reader, u8, Endian.big));
+    self.paused = (try utils.readInt(&reader, u8, Endian.big)) == 1;
     try self.memory.loadState(&reader);
     try self.timer.loadState(&reader);
 }
@@ -184,8 +191,10 @@ fn printIndex(self: *Self) void {
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
     if (self.should_print) {
         // std.debug.print(fmt, args);
-        if (self.log_out) |log_out| {
-            log_out.print(fmt, args) catch std.debug.panic("Could not print.", .{});
+        if (self.log_out) |*log_out| {
+            var buffer: [256]u8 = undefined;
+            const printed = std.fmt.bufPrint(&buffer, fmt, args) catch return;
+            log_out.interface.writeAll(printed) catch std.debug.panic("Could not print.", .{});
         }
     }
 }
@@ -200,7 +209,8 @@ pub fn printFlags(self: *Self) void {
 
 pub fn logState(self: *Self) !void {
     if (self.is_doctor_test) {
-        try self.std_out.print("A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+        var buffer: [256]u8 = undefined;
+        const printed = try std.fmt.bufPrint(&buffer, "A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
             a_reg.*,
             af.sp.flag.full,
             bc.sp.hi,
@@ -216,11 +226,13 @@ pub fn logState(self: *Self) !void {
             self.memory.read(self.pc + 2),
             self.memory.read(self.pc + 3),
         });
+        try self.std_out.interface.writeAll(printed);
     }
     if (!(self.should_print and self.output_memory)) {
         return;
     }
-    try self.log_out.?.print("{X:08} {d:08}-{X:08} {d:08} {d:1}-{d:03} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+    var buffer2: [512]u8 = undefined;
+    const printed2 = try std.fmt.bufPrint(&buffer2, "{X:08} {d:08}-{X:08} {d:08} {d:1}-{d:03} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
         self.counter,
         self.timer.internal_counter,
         self.timer.read(0xFF04),
@@ -242,6 +254,7 @@ pub fn logState(self: *Self) !void {
         self.memory.read(self.pc + 2),
         self.memory.read(self.pc + 3),
     });
+    try self.log_out.?.interface.writeAll(printed2);
 }
 
 fn readRegDataValue(self: *Self, index: u8) u8 {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const Self = @This();
+const utils = @import("../utils.zig");
 
 buttons_selected: u1,
 pad_selected: u1,
@@ -64,10 +65,10 @@ pub fn reset(self: *Self) void {
     self.right = 1;
 }
 
-pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
-    try writer.writeInt(u8, self.read(), std.builtin.Endian.big);
+pub fn saveState(self: *Self, writer: *std.fs.File.Writer) !void {
+    try utils.writeInt(writer, u8, self.read(), std.builtin.Endian.big);
 }
 
-pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
-    self.write(try reader.readInt(u8, std.builtin.Endian.big));
+pub fn loadState(self: *Self, reader: *std.fs.File.Reader) !void {
+    self.write(try utils.readInt(reader, u8, std.builtin.Endian.big));
 }

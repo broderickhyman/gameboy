@@ -107,26 +107,26 @@ pub fn write(self: *Self, address: u16, value: u8, memory: *Memory) void {
     }
 }
 
-pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
-    try writer.writeInt(u8, @intFromBool(self.halted), Endian.big);
-    try writer.writeInt(u16, self.internal_counter, Endian.big);
-    try writer.writeInt(u8, self.timer, Endian.big);
-    try writer.writeInt(u8, self.tac, Endian.big);
-    try writer.writeInt(u8, self.modulo, Endian.big);
-    try writer.writeInt(u8, self.falling_edge, Endian.big);
-    try writer.writeInt(u8, self.tac_enabled, Endian.big);
-    try writer.writeInt(u8, self.clock_bit, Endian.big);
-    try writer.writeInt(u8, self.overflow_counter, Endian.big);
+pub fn saveState(self: *Self, writer: *std.fs.File.Writer) !void {
+    try utils.writeInt(writer, u8, @intFromBool(self.halted), Endian.big);
+    try utils.writeInt(writer, u16, self.internal_counter, Endian.big);
+    try utils.writeInt(writer, u8, self.timer, Endian.big);
+    try utils.writeInt(writer, u8, self.tac, Endian.big);
+    try utils.writeInt(writer, u8, self.modulo, Endian.big);
+    try utils.writeInt(writer, u8, self.falling_edge, Endian.big);
+    try utils.writeInt(writer, u8, self.tac_enabled, Endian.big);
+    try utils.writeInt(writer, u8, self.clock_bit, Endian.big);
+    try utils.writeInt(writer, u8, self.overflow_counter, Endian.big);
 }
 
-pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
-    self.halted = try reader.readInt(u8, Endian.big) == 1;
-    self.internal_counter = @truncate(try reader.readInt(u16, Endian.big));
-    self.timer = try reader.readInt(u8, Endian.big);
-    self.tac = try reader.readInt(u8, Endian.big);
-    self.modulo = try reader.readInt(u8, Endian.big);
-    self.falling_edge = @truncate(try reader.readInt(u8, Endian.big));
-    self.tac_enabled = @truncate(try reader.readInt(u8, Endian.big));
-    self.clock_bit = @truncate(try reader.readInt(u8, Endian.big));
-    self.overflow_counter = @truncate(try reader.readInt(u8, Endian.big));
+pub fn loadState(self: *Self, reader: *std.fs.File.Reader) !void {
+    self.halted = (try utils.readInt(reader, u8, Endian.big)) == 1;
+    self.internal_counter = @truncate(try utils.readInt(reader, u16, Endian.big));
+    self.timer = try utils.readInt(reader, u8, Endian.big);
+    self.tac = try utils.readInt(reader, u8, Endian.big);
+    self.modulo = try utils.readInt(reader, u8, Endian.big);
+    self.falling_edge = @truncate(try utils.readInt(reader, u8, Endian.big));
+    self.tac_enabled = @truncate(try utils.readInt(reader, u8, Endian.big));
+    self.clock_bit = @truncate(try utils.readInt(reader, u8, Endian.big));
+    self.overflow_counter = @truncate(try utils.readInt(reader, u8, Endian.big));
 }
