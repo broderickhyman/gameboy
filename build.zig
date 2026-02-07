@@ -44,12 +44,12 @@ pub fn build(b: *std.Build) void {
     // Add "sdl2" package that exposes the SDL2 api (like SDL_Init or SDL_CreateWindow)
     exe.root_module.addImport("sdl2", sdk.getWrapperModule());
 
-    const zdt = b.dependency("zdt", .{
+    const zeit = b.dependency("zeit", .{
         .target = target,
         .optimize = optimize,
     });
 
-    exe.root_module.addImport("zdt", zdt.module("zdt"));
+    exe.root_module.addImport("zeit", zeit.module("zeit"));
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default

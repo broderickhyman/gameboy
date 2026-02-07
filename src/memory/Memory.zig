@@ -6,7 +6,7 @@ const Ram = @import("Ram.zig");
 const JoyPad = @import("../io/Joypad.zig");
 const Mapper = @import("../utils.zig").Mapper;
 const utils = @import("../utils.zig");
-const zdt = @import("zdt");
+const zeit = @import("zeit");
 const Timer = @import("../cpu/Timer.zig");
 
 timer: *Timer,
@@ -30,7 +30,7 @@ joypad: *JoyPad,
 banking_mode: u1,
 rtc_register: u4,
 latch_last_write: u8,
-latched_time: zdt.Datetime,
+latched_time: zeit.Instant,
 log_out: ?std.fs.File.Writer,
 dma_delay: u8,
 dma_timing: u12,
@@ -47,7 +47,7 @@ pub fn create(
     file_num: u8,
     log_out: ?std.fs.File.Writer,
 ) !*Self {
-    var rom_banks = std.ArrayList(RomBank).init(allocator.*);
+    var rom_banks = std.array_list.Managed(RomBank).init(allocator.*);
     var counter: u24 = 0;
     while (counter < bank_count) : (counter += 1) {
         const start: u24 = @as(u24, 0x4000) * counter;
@@ -56,13 +56,15 @@ pub fn create(
         new_rom.load(file_data[start..end]);
         try rom_banks.append(new_rom.*);
     }
-    var external_ram_banks = std.ArrayList(Ram).init(allocator.*);
+    var external_ram_banks = std.array_list.Managed(Ram).init(allocator.*);
     counter = 0;
     const ram_banks = ram_size / 8;
     if (ram_banks > 0) {
         var reader: ?std.fs.File.Reader = null;
         if (utils.openFileRead(allocator, file_num, "ram.bin")) |file_open| {
-            reader = file_open.reader();
+            const buf = try allocator.alloc(u8, 1000);
+            defer allocator.free(buf);
+            reader = file_open.reader(buf);
         } else |err| switch (err) {
             std.fs.File.OpenError.FileNotFound => {},
             else => return err,
@@ -98,7 +100,7 @@ pub fn create(
         .banking_mode = 0,
         .rtc_register = 0,
         .latch_last_write = 0xFF,
-        .latched_time = zdt.Datetime.nowUTC(),
+        .latched_time = try zeit.instant(.{}),
         .log_out = log_out,
         .dma_delay = 0,
         .dma_timing = 0,
@@ -325,7 +327,7 @@ fn mbc3_write(self: *Self, address: u16, value: u8) void {
         },
         0x6000...0x7FFF => {
             if (self.latch_last_write == 0 and value == 1) {
-                self.latched_time = zdt.Datetime.nowUTC();
+                self.latched_time = try zeit.instant(.{});
             }
             self.latch_last_write = value;
         },
@@ -437,7 +439,7 @@ pub fn saveState(self: *Self, writer: *const std.fs.File.Writer) !void {
     try writer.writeInt(u8, self.banking_mode, Endian.big);
     try writer.writeInt(u8, self.rtc_register, Endian.big);
     try writer.writeInt(u8, self.latch_last_write, Endian.big);
-    try writer.writeInt(i64, self.latched_time.unix_sec, Endian.big);
+    try writer.writeInt(i64, self.latched_time.unixTimestamp(), Endian.big);
     try writer.writeInt(u8, self.dma_delay, Endian.big);
     try writer.writeInt(u16, self.dma_timing, Endian.big);
     try writer.writeInt(u8, @intFromBool(self.dma_running), Endian.big);
@@ -459,7 +461,7 @@ pub fn loadState(self: *Self, reader: *const std.fs.File.Reader) !void {
     self.banking_mode = @truncate(try reader.readInt(u8, Endian.big));
     self.rtc_register = @truncate(try reader.readInt(u8, Endian.big));
     self.latch_last_write = try reader.readInt(u8, Endian.big);
-    self.latched_time = try zdt.Datetime.fromUnix(try reader.readInt(i64, Endian.big), zdt.Duration.Resolution.second, null);
+    self.latched_time = try zeit.instant(.{ .source = .{ .unix_timestamp = try reader.readInt(i64, Endian.big) } });
     self.dma_delay = try reader.readInt(u8, Endian.big);
     self.dma_timing = @truncate(try reader.readInt(u16, Endian.big));
     self.dma_running = try reader.readInt(u8, Endian.big) == 1;

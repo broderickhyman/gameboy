@@ -12,12 +12,12 @@
     // In a future version of Zig it will be used for package deduplication.
     .version = "0.0.0",
 
-    .fingerprint = 0xfd606499dc5a5537,
-
     // This field is optional.
     // This is currently advisory only; Zig does not yet do anything
     // with this value.
-    //.minimum_zig_version = "0.11.0",
+    .minimum_zig_version = "0.15.2",
+
+    .fingerprint = 0xfd6064991b353ee0,
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -54,12 +54,13 @@
         //    // actually used.
         //    .lazy = false,
         //},
-        .sdl = .{
-            .path = "../SDL.zig/",
+        .zeit = .{
+            .url = "git+https://github.com/rockorager/zeit?ref=main#7ac64d72dbfb1a4ad549102e7d4e232a687d32d8",
+            .hash = "zeit-0.6.0-5I6bk36tAgATpSl9wjFmRPMqYN2Mn0JQHgIcRNcqDpJA",
         },
-        .zdt = .{
-            .url = "https://github.com/FObersteiner/zdt/archive/refs/tags/v0.4.5.tar.gz",
-            .hash = "1220770d2ef9e42764b080adc3024cc7833c8d5e9e025e7f1241b7d53b0a905589c6",
+        .sdl = .{
+            .url = "git+https://github.com/ikskuh/SDL.zig?ref=master#a7e95b5fcc5b0d68921c148778609d2fe248c3d8",
+            .hash = "SDL2-0.0.0-yMCQivWqBABTfB8opAADsLCGxxu20vijLBW2hHdpTR-L",
         },
     },
 

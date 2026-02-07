@@ -70,8 +70,8 @@ pub fn writeData(writer: *const std.fs.File.Writer, data: *const []u8) !void {
     }
 }
 
-pub fn readData(reader: *const std.fs.File.Reader, data: *const []u8) !void {
-    const bytes_read = try reader.read(data.*);
+pub fn readData(reader: *std.fs.File.Reader, data: *const []u8) !void {
+    const bytes_read = try reader.interface.readSliceAll(data.*);
     if (bytes_read != data.len) {
         std.debug.panic("Did not read all bytes", .{});
     }

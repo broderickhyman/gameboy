@@ -13,7 +13,9 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa_allocator = gpa.allocator();
 
-    const std_out = std.io.getStdOut().writer();
+    const stdout_buffer = gpa_allocator.alloc(u8, 100) catch unreachable;
+    defer gpa_allocator.free(stdout_buffer);
+    const std_out = std.fs.File.stdout().writer(stdout_buffer).interface;
 
     const args = try std.process.argsAlloc(gpa_allocator);
     defer std.process.argsFree(gpa_allocator, args);
@@ -187,14 +189,14 @@ pub fn main() !void {
     };
     std.debug.print("RAM Size: {d} KiB\n", .{ram_size});
 
-    var log_out: ?std.fs.File.Writer = null;
+    const log_out: ?std.fs.File.Writer = null;
     if (log_enabled) {
-        const log_file = try std.fs.cwd().createFile(
-            "output/output.log",
-            .{},
-        );
+        // const log_file = try std.fs.cwd().createFile(
+        //     "output/output.log",
+        //     .{},
+        // );
         // defer log_file.close();
-        log_out = log_file.writer();
+        // log_out = log_file.writer();
     }
 
     const timer = try Timer.create(&gpa_allocator);
