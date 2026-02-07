@@ -189,14 +189,14 @@ pub fn main() !void {
     };
     std.debug.print("RAM Size: {d} KiB\n", .{ram_size});
 
-    const log_out: ?std.fs.File.Writer = null;
+    var log_out: ?std.fs.File.Writer = null;
     if (log_enabled) {
-        // const log_file = try std.fs.cwd().createFile(
-        //     "output/output.log",
-        //     .{},
-        // );
-        // defer log_file.close();
-        // log_out = log_file.writer();
+        const log_file = try std.fs.cwd().createFile(
+            "output/output.log",
+            .{},
+        );
+        defer log_file.close();
+        log_out = log_file.writer(stdout_buffer);
     }
 
     const timer = try Timer.create(&gpa_allocator);
