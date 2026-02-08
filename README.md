@@ -11,6 +11,12 @@ A Game Boy emulator written in Zig that simulates the original Nintendo Game Boy
 - Some edge cases in instruction behavior
 - Full game compatibility
 
+## Screenshots
+
+<img width="300" height="270" alt="image" src="https://github.com/user-attachments/assets/51f856c6-4a05-4a32-a655-59fc677755c5" />
+<img width="300" height="270" alt="image" src="https://github.com/user-attachments/assets/8c4a212d-15b8-430b-84ae-54e087bd3e0b" />
+
+
 ## Overview
 
 This emulator implements the core components of the Game Boy system:
