@@ -1,4 +1,4 @@
-roms/*.gb
+roms/
 output/
 
 # This file is for zig-specific build artifacts.
