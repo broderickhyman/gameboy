@@ -45,7 +45,6 @@ pub fn create(
     bank_count: u9,
     ram_size: u8,
     mapper: Mapper,
-    log_out: ?std.fs.File.Writer,
 ) !*Self {
     var rom_banks = std.array_list.Managed(RomBank).init(run_context.allocator.*);
     var counter: u24 = 0;
@@ -61,10 +60,9 @@ pub fn create(
     const ram_banks = ram_size / 8;
     if (ram_banks > 0) {
         var reader: ?std.fs.File.Reader = null;
+        var buffer: [4096]u8 = undefined;
         if (utils.openFileRead(run_context, "ram.bin")) |file_open| {
-            const buf = try run_context.allocator.alloc(u8, 1000);
-            defer run_context.allocator.free(buf);
-            reader = file_open.reader(buf);
+            reader = file_open.reader(&buffer);
         } else |err| switch (err) {
             std.fs.File.OpenError.FileNotFound => {},
             else => return err,
@@ -101,7 +99,7 @@ pub fn create(
         .rtc_register = 0,
         .latch_last_write = 0xFF,
         .latched_time = try zeit.instant(.{}),
-        .log_out = log_out,
+        .log_out = run_context.log_out,
         .dma_delay = 0,
         .dma_timing = 0,
         .dma_running = false,
@@ -410,6 +408,7 @@ fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
         var buffer: [256]u8 = undefined;
         const printed = std.fmt.bufPrint(&buffer, fmt, args) catch return;
         log_out.interface.writeAll(printed) catch std.debug.panic("Could not print.", .{});
+        log_out.interface.flush() catch std.debug.panic("Could not flush.", .{});
     }
 }
 

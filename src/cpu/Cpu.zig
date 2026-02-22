@@ -6,6 +6,7 @@ const Memory = @import("../memory/Memory.zig");
 const Timer = @import("Timer.zig");
 const RunContext = @import("../RunContext.zig");
 
+run_context: *RunContext,
 memory: *Memory,
 timer: *Timer,
 pc: u16,
@@ -14,24 +15,21 @@ debug: bool,
 verbose: bool,
 should_print: bool,
 output_memory: bool,
-std_out: std.fs.File.Writer,
-log_out: ?std.fs.File.Writer,
 is_doctor_test: bool,
 ime: u1,
 paused: bool,
 dot_counter: u8,
 
 pub fn create(
-    allocator: *const std.mem.Allocator,
+    run_context: *RunContext,
     memory: *Memory,
     timer: *Timer,
     start_pc: u16,
-    std_out: std.fs.File.Writer,
-    log_out: ?std.fs.File.Writer,
 ) !*Self {
-    const cpu = try allocator.create(Self);
+    const cpu = try run_context.allocator.create(Self);
 
     cpu.* = .{
+        .run_context = run_context,
         .memory = memory,
         .timer = timer,
         .pc = start_pc,
@@ -40,8 +38,6 @@ pub fn create(
         .output_memory = false,
         .debug = false,
         .verbose = false,
-        .std_out = std_out,
-        .log_out = log_out,
         .is_doctor_test = false,
         .ime = 0,
         .paused = false,
@@ -133,26 +129,24 @@ fn read(self: *Self) u8 {
     return memory_value;
 }
 
-pub fn saveRam(self: *Self, run_context: *const RunContext) !void {
+pub fn saveRam(self: *Self) !void {
     if (self.memory.external_ram_banks.len == 0) {
         return;
     }
-    const file = try utils.openFileWrite(run_context, "ram.bin");
+    const file = try utils.openFileWrite(self.run_context, "ram.bin");
     defer file.close();
-    const buffer = try run_context.allocator.alloc(u8, 1000);
-    defer run_context.allocator.free(buffer);
-    var writer = file.writer(buffer);
+    var buffer: [4096]u8 = undefined;
+    var writer = file.writer(&buffer);
     try self.memory.saveRam(&writer);
     try writer.end();
 }
 
-pub fn saveState(self: *Self, run_context: *const RunContext) !void {
+pub fn saveState(self: *Self) !void {
     // self.paused = true;
-    const file = try utils.openFileWrite(run_context, "state.bin");
+    const file = try utils.openFileWrite(self.run_context, "state.bin");
     defer file.close();
-    const buffer = try run_context.allocator.alloc(u8, 2000);
-    defer run_context.allocator.free(buffer);
-    var writer = file.writer(buffer);
+    var buffer: [4096]u8 = undefined;
+    var writer = file.writer(&buffer);
     try utils.writeInt(&writer, u16, af.af, Endian.big);
     try utils.writeInt(&writer, u16, bc.full, Endian.big);
     try utils.writeInt(&writer, u16, de.full, Endian.big);
@@ -167,13 +161,12 @@ pub fn saveState(self: *Self, run_context: *const RunContext) !void {
     try writer.end();
 }
 
-pub fn loadState(self: *Self, run_context: *const RunContext) !void {
+pub fn loadState(self: *Self) !void {
     // self.paused = true;
-    const file = try utils.openFileRead(run_context, "state.bin");
+    const file = try utils.openFileRead(self.run_context, "state.bin");
     defer file.close();
-    const buffer = try run_context.allocator.alloc(u8, 2000);
-    defer run_context.allocator.free(buffer);
-    var reader = file.reader(buffer);
+    var buffer: [4096]u8 = undefined;
+    var reader = file.reader(&buffer);
     af.af = try utils.readInt(&reader, u16, Endian.big);
     bc.full = try utils.readInt(&reader, u16, Endian.big);
     de.full = try utils.readInt(&reader, u16, Endian.big);
@@ -194,10 +187,11 @@ fn printIndex(self: *Self) void {
 fn print(self: *Self, comptime fmt: []const u8, args: anytype) void {
     if (self.should_print) {
         // std.debug.print(fmt, args);
-        if (self.log_out) |*log_out| {
+        if (self.run_context.log_out) |*log_out| {
             var buffer: [256]u8 = undefined;
             const printed = std.fmt.bufPrint(&buffer, fmt, args) catch return;
             log_out.interface.writeAll(printed) catch std.debug.panic("Could not print.", .{});
+            log_out.interface.flush() catch std.debug.panic("Could not flush.", .{});
         }
     }
 }
@@ -229,35 +223,39 @@ pub fn logState(self: *Self) !void {
             self.memory.read(self.pc + 2),
             self.memory.read(self.pc + 3),
         });
-        try self.std_out.interface.writeAll(printed);
+        try self.run_context.std_out.interface.writeAll(printed);
+        try self.run_context.std_out.interface.flush();
     }
     if (!(self.should_print and self.output_memory)) {
         return;
     }
-    var buffer2: [512]u8 = undefined;
-    const printed2 = try std.fmt.bufPrint(&buffer2, "{X:08} {d:08}-{X:08} {d:08} {d:1}-{d:03} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
-        self.counter,
-        self.timer.internal_counter,
-        self.timer.read(0xFF04),
-        self.timer.timer,
-        self.memory.dma_delay,
-        self.memory.dma_timing,
-        a_reg.*,
-        af.sp.flag.full,
-        bc.sp.hi,
-        bc.sp.lo,
-        de.sp.hi,
-        de.sp.lo,
-        hl.sp.hi,
-        hl.sp.lo,
-        sp,
-        self.pc,
-        self.memory.read(self.pc),
-        self.memory.read(self.pc + 1),
-        self.memory.read(self.pc + 2),
-        self.memory.read(self.pc + 3),
-    });
-    try self.log_out.?.interface.writeAll(printed2);
+    if (self.run_context.log_out) |*log_out| {
+        var buffer2: [512]u8 = undefined;
+        const printed2 = try std.fmt.bufPrint(&buffer2, "{X:08} {d:08}-{X:08} {d:08} {d:1}-{d:03} A:{X:02} F:{X:02} B:{X:02} C:{X:02} D:{X:02} E:{X:02} H:{X:02} L:{X:02} SP:{X:04} PC:{X:04} PCMEM:{X:02},{X:02},{X:02},{X:02}\n", .{
+            self.counter,
+            self.timer.internal_counter,
+            self.timer.read(0xFF04),
+            self.timer.timer,
+            self.memory.dma_delay,
+            self.memory.dma_timing,
+            a_reg.*,
+            af.sp.flag.full,
+            bc.sp.hi,
+            bc.sp.lo,
+            de.sp.hi,
+            de.sp.lo,
+            hl.sp.hi,
+            hl.sp.lo,
+            sp,
+            self.pc,
+            self.memory.read(self.pc),
+            self.memory.read(self.pc + 1),
+            self.memory.read(self.pc + 2),
+            self.memory.read(self.pc + 3),
+        });
+        try log_out.interface.writeAll(printed2);
+        try log_out.interface.flush();
+    }
 }
 
 fn readRegDataValue(self: *Self, index: u8) u8 {

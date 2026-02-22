@@ -15,9 +15,8 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa_allocator = gpa.allocator();
 
-    const stdout_buffer = gpa_allocator.alloc(u8, 100) catch unreachable;
-    defer gpa_allocator.free(stdout_buffer);
-    const std_out = std.fs.File.stdout().writer(stdout_buffer);
+    var stdout_buffer: [1024]u8 = undefined;
+    const std_out = std.fs.File.stdout().writer(&stdout_buffer);
 
     const args = try std.process.argsAlloc(gpa_allocator);
     defer std.process.argsFree(gpa_allocator, args);
@@ -103,7 +102,6 @@ pub fn main() !void {
         display = true;
         std.debug.print("Custom ROM: {s}\n", .{rom_path});
     }
-    const run_context = RunContext.create(&gpa_allocator, output_dir);
     std.debug.print("Path: {s}\n", .{path});
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
@@ -155,20 +153,23 @@ pub fn main() !void {
 
     var log_out: ?std.fs.File.Writer = null;
     if (log_enabled) {
+        var logout_buffer: [4096]u8 = undefined;
         const log_file = try std.fs.cwd().createFile(
             "output/output.log",
             .{},
         );
         defer log_file.close();
-        log_out = log_file.writer(stdout_buffer);
+        log_out = log_file.writer(&logout_buffer);
     }
+
+    var run_context = RunContext.create(&gpa_allocator, output_dir, std_out, log_out);
 
     const timer = try Timer.create(&gpa_allocator);
 
-    const memory = try Memory.create(&run_context, timer, file_data, bank_count, ram_size, mapper, log_out);
+    const memory = try Memory.create(&run_context, timer, file_data, bank_count, ram_size, mapper);
 
-    const cpu = try Cpu.create(&gpa_allocator, memory, timer, start_pc, std_out, log_out);
-    defer gpa_allocator.destroy(cpu);
+    const cpu = try Cpu.create(&run_context, memory, timer, start_pc);
+    defer run_context.allocator.destroy(cpu);
 
     cpu.should_print = should_print;
     cpu.debug = debug;
@@ -224,8 +225,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
     const smoothing = 0.9;
     const ideal_frame_time = 16740 * std.time.ns_per_us;
     var current_fps: f64 = 60.0;
-    const fps_buf = try run_context.allocator.alloc(u8, 10);
-    defer run_context.allocator.free(fps_buf);
+    var fps_buf: [10]u8 = undefined;
     var frame_counter: u64 = 0;
     var output_timer = try std.time.Instant.now();
 
@@ -266,9 +266,9 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
                         SDL.Keycode.left => joypad.left = 1,
                         SDL.Keycode.right => joypad.right = 1,
                         SDL.Keycode.p, SDL.Keycode.escape => cpu.paused = !cpu.paused,
-                        SDL.Keycode.r => try cpu.saveRam(run_context),
-                        SDL.Keycode.u => try cpu.saveState(run_context),
-                        SDL.Keycode.l => try cpu.loadState(run_context),
+                        SDL.Keycode.r => try cpu.saveRam(),
+                        SDL.Keycode.u => try cpu.saveState(),
+                        SDL.Keycode.l => try cpu.loadState(),
                         else => {},
                     }
                 },
@@ -305,7 +305,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
                 try ppu.render(current_dots, &pixel_data);
             }
             if (cpu.memory.ram_save_requested) {
-                try cpu.saveRam(run_context);
+                try cpu.saveRam();
             }
             if (test_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});
@@ -325,7 +325,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
             try renderer.copy(texture, text_rect, null);
         }
 
-        const fps_str = try std.fmt.bufPrintZ(fps_buf, "{d:.1}", .{current_fps});
+        const fps_str = try std.fmt.bufPrintZ(&fps_buf, "{d:.1}", .{current_fps});
         const surface = try font.renderTextSolid(fps_str, SDL.Color.red);
         defer surface.destroy();
         const texture = try SDL.createTextureFromSurface(renderer, surface);
