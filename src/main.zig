@@ -4,6 +4,7 @@ const Ppu = @import("display/PPU.zig");
 const SDL = @import("sdl2");
 const Memory = @import("memory/Memory.zig");
 const Timer = @import("cpu/Timer.zig");
+const RunContext = @import("RunContext.zig");
 const Mapper = @import("utils.zig").Mapper;
 const utils = @import("utils.zig");
 const TestConfig = @import("TestConfig.zig");
@@ -24,7 +25,7 @@ pub fn main() !void {
     var debug = false;
     var log_enabled = false;
     var should_print = false;
-    var test_num: ?u8 = null;
+    var test_num_arg: ?u8 = null;
     var custom_rom_path: ?[]const u8 = null;
     var args_index: usize = 1;
     var is_doctor_test = false;
@@ -49,7 +50,7 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "--test")) {
             args_index += 1;
             if (args_index < args.len) {
-                test_num = try std.fmt.parseInt(u8, args[args_index], 10);
+                test_num_arg = try std.fmt.parseInt(u8, args[args_index], 10);
             }
         } else if (std.mem.eql(u8, arg, "--rom")) {
             args_index += 1;
@@ -59,7 +60,7 @@ pub fn main() !void {
         }
     }
 
-    if (test_num == null and custom_rom_path == null) {
+    if (test_num_arg == null and custom_rom_path == null) {
         std.debug.print("Error: Must provide either --test <num> or --rom <path>\n", .{});
         return;
     }
@@ -72,20 +73,24 @@ pub fn main() !void {
 
     var path: []const u8 = undefined;
     var start_pc: u16 = 0x0100;
-    var actual_test_num: u8 = 0;
+    var test_num: u8 = 0;
+    var dir_name_buf: [256]u8 = undefined;
+    var output_dir: []const u8 = undefined;
 
-    if (test_num) |t| {
+    if (test_num_arg) |t| {
         const entry = test_suite.findById(t) orelse {
             std.debug.print("Error: Test ID {d} not found\n", .{t});
             return;
         };
         path = entry.path;
         start_pc = entry.getStartPc();
-        actual_test_num = t;
+        test_num = t;
+        output_dir = try std.fmt.bufPrint(&dir_name_buf, "{d:02}", .{t});
         std.debug.print("Test: {s}\n", .{entry.name});
 
         if (entry.type == TestConfig.TestType.display_test or
-            entry.type == TestConfig.TestType.boot_rom) {
+            entry.type == TestConfig.TestType.boot_rom)
+        {
             display = true;
         }
 
@@ -93,10 +98,12 @@ pub fn main() !void {
     } else if (custom_rom_path) |rom_path| {
         path = rom_path;
         start_pc = 0x0100;
-        actual_test_num = 255;
+        test_num = 255;
+        output_dir = try utils.sanitizeFilename(rom_path, &dir_name_buf);
         display = true;
         std.debug.print("Custom ROM: {s}\n", .{rom_path});
     }
+    const run_context = RunContext.create(&gpa_allocator, output_dir);
     std.debug.print("Path: {s}\n", .{path});
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
@@ -158,7 +165,7 @@ pub fn main() !void {
 
     const timer = try Timer.create(&gpa_allocator);
 
-    const memory = try Memory.create(&gpa_allocator, timer, file_data, bank_count, ram_size, mapper, actual_test_num, log_out);
+    const memory = try Memory.create(&run_context, timer, file_data, bank_count, ram_size, mapper, log_out);
 
     const cpu = try Cpu.create(&gpa_allocator, memory, timer, start_pc, std_out, log_out);
     defer gpa_allocator.destroy(cpu);
@@ -169,17 +176,17 @@ pub fn main() !void {
     cpu.is_doctor_test = is_doctor_test;
     cpu.output_memory = output_memory;
 
-    if (actual_test_num == 0) {
+    if (test_num == 0) {
         fakeCartridge(cpu);
     }
     if (display) {
-        try runDisplay(cpu, actual_test_num, &gpa_allocator, fast);
+        try runDisplay(cpu, &run_context, test_num, fast);
     } else {
         try runGameboyDoctor(cpu);
     }
 }
 
-fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast: bool) !void {
+fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: bool) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -208,8 +215,8 @@ fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast
     try renderer.setScale(new_scale, new_scale);
     try renderer.setDrawBlendMode(SDL.BlendMode.none);
 
-    const ppu = try Ppu.create(allocator, cpu);
-    defer allocator.destroy(ppu);
+    const ppu = try Ppu.create(run_context.allocator, cpu);
+    defer run_context.allocator.destroy(ppu);
 
     const font = try SDL.ttf.openFont("./resources/input.ttf", 48);
 
@@ -217,8 +224,8 @@ fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast
     const smoothing = 0.9;
     const ideal_frame_time = 16740 * std.time.ns_per_us;
     var current_fps: f64 = 60.0;
-    const fps_buf = try allocator.alloc(u8, 10);
-    defer allocator.free(fps_buf);
+    const fps_buf = try run_context.allocator.alloc(u8, 10);
+    defer run_context.allocator.free(fps_buf);
     var frame_counter: u64 = 0;
     var output_timer = try std.time.Instant.now();
 
@@ -259,9 +266,9 @@ fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast
                         SDL.Keycode.left => joypad.left = 1,
                         SDL.Keycode.right => joypad.right = 1,
                         SDL.Keycode.p, SDL.Keycode.escape => cpu.paused = !cpu.paused,
-                        SDL.Keycode.r => try cpu.saveRam(allocator, test_num),
-                        SDL.Keycode.u => try cpu.saveState(allocator, test_num),
-                        SDL.Keycode.l => try cpu.loadState(allocator, test_num),
+                        SDL.Keycode.r => try cpu.saveRam(run_context),
+                        SDL.Keycode.u => try cpu.saveState(run_context),
+                        SDL.Keycode.l => try cpu.loadState(run_context),
                         else => {},
                     }
                 },
@@ -298,7 +305,7 @@ fn runDisplay(cpu: *Cpu, test_num: u8, allocator: *const std.mem.Allocator, fast
                 try ppu.render(current_dots, &pixel_data);
             }
             if (cpu.memory.ram_save_requested) {
-                try cpu.saveRam(allocator, test_num);
+                try cpu.saveRam(run_context);
             }
             if (test_num == 0 and cpu.memory.read(0xFF50) > 0) {
                 std.debug.print("Disable Boot ROM\n", .{});

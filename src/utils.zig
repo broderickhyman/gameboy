@@ -1,4 +1,5 @@
 const std = @import("std");
+const RunContext = @import("RunContext.zig");
 
 pub fn resetBit(pointer: *u8, shift: u3) void {
     const mask = ~(@as(u8, 1) << shift);
@@ -36,44 +37,31 @@ pub fn getMapperName(mapper: Mapper) []const u8 {
 }
 
 /// Must close the file yourself
-pub fn openFileWrite(allocator: *const std.mem.Allocator, test_num: u8, file_name: []const u8) !std.fs.File {
-    const file_path = getFilePath(allocator, test_num, null, file_name);
-    defer allocator.free(file_path);
+pub fn openFileWrite(run_context: *const RunContext, file_name: []const u8) !std.fs.File {
+    const file_path = getFilePath(run_context, file_name);
+    defer run_context.allocator.free(file_path);
     return try std.fs.cwd().createFile(file_path, .{});
 }
 
 /// Must close the file yourself
-pub fn openFileRead(allocator: *const std.mem.Allocator, test_num: u8, file_name: []const u8) std.fs.File.OpenError!std.fs.File {
-    const file_path = getFilePath(allocator, test_num, null, file_name);
-    defer allocator.free(file_path);
+pub fn openFileRead(run_context: *const RunContext, file_name: []const u8) std.fs.File.OpenError!std.fs.File {
+    const file_path = getFilePath(run_context, file_name);
+    defer run_context.allocator.free(file_path);
     return std.fs.cwd().openFile(file_path, .{});
 }
 
-pub fn getFilePath(allocator: *const std.mem.Allocator, test_num: u8, custom_name: ?[]const u8, file_name: []const u8) []u8 {
+pub fn getFilePath(run_context: *const RunContext, file_name: []const u8) []u8 {
     const cwd = std.fs.cwd();
-    var directory_name_buf: [256]u8 = undefined;
-    var directory_name: []const u8 = undefined;
-
-    if (custom_name) |name| {
-        // For custom ROMs, use sanitized filename
-        directory_name = sanitizeFilename(name, &directory_name_buf) catch unreachable;
-    } else {
-        // For test ROMs, use numeric test_num
-        const buffer = allocator.alloc(u8, 10) catch unreachable;
-        defer allocator.free(buffer);
-        directory_name = std.fmt.bufPrintZ(buffer, "{d:02}", .{test_num}) catch unreachable;
-    }
-
-    const directory_parts = [_][]const u8{ "output", directory_name };
-    const dir_path = std.fs.path.join(allocator.*, &directory_parts) catch unreachable;
-    defer allocator.free(dir_path);
+    const directory_parts = [_][]const u8{ "output", run_context.dir_name };
+    const dir_path = std.fs.path.join(run_context.allocator.*, &directory_parts) catch unreachable;
+    defer run_context.allocator.free(dir_path);
     cwd.makePath(dir_path) catch unreachable;
     const file_parts = [_][]const u8{ dir_path, file_name };
-    const result = std.fs.path.join(allocator.*, &file_parts) catch unreachable;
+    const result = std.fs.path.join(run_context.allocator.*, &file_parts) catch unreachable;
     return result;
 }
 
-fn sanitizeFilename(path: []const u8, buffer: *[256]u8) ![]u8 {
+pub fn sanitizeFilename(path: []const u8, buffer: *[256]u8) ![]u8 {
     // Extract basename from path
     var basename_start: usize = 0;
     for (0..path.len) |i| {
@@ -100,7 +88,8 @@ fn sanitizeFilename(path: []const u8, buffer: *[256]u8) ![]u8 {
         const c = char;
         if ((c >= 'a' and c <= 'z') or
             (c >= 'A' and c <= 'Z') or
-            (c >= '0' and c <= '9')) {
+            (c >= '0' and c <= '9'))
+        {
             buffer[result_idx] = c;
         } else {
             buffer[result_idx] = '_';

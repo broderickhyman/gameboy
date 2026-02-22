@@ -6,6 +6,7 @@ const Ram = @import("Ram.zig");
 const JoyPad = @import("../io/Joypad.zig");
 const Mapper = @import("../utils.zig").Mapper;
 const utils = @import("../utils.zig");
+const RunContext = @import("../RunContext.zig");
 const zeit = @import("zeit");
 const Timer = @import("../cpu/Timer.zig");
 
@@ -38,46 +39,45 @@ dma_running: bool,
 ram_save_requested: bool,
 
 pub fn create(
-    allocator: *const std.mem.Allocator,
+    run_context: *const RunContext,
     timer: *Timer,
     file_data: []u8,
     bank_count: u9,
     ram_size: u8,
     mapper: Mapper,
-    test_num: u8,
     log_out: ?std.fs.File.Writer,
 ) !*Self {
-    var rom_banks = std.array_list.Managed(RomBank).init(allocator.*);
+    var rom_banks = std.array_list.Managed(RomBank).init(run_context.allocator.*);
     var counter: u24 = 0;
     while (counter < bank_count) : (counter += 1) {
         const start: u24 = @as(u24, 0x4000) * counter;
         const end: u24 = (@as(u24, 0x4000) * (counter + 1));
-        var new_rom = try RomBank.create(allocator);
+        var new_rom = try RomBank.create(run_context.allocator);
         new_rom.load(file_data[start..end]);
         try rom_banks.append(new_rom.*);
     }
-    var external_ram_banks = std.array_list.Managed(Ram).init(allocator.*);
+    var external_ram_banks = std.array_list.Managed(Ram).init(run_context.allocator.*);
     counter = 0;
     const ram_banks = ram_size / 8;
     if (ram_banks > 0) {
         var reader: ?std.fs.File.Reader = null;
-        if (utils.openFileRead(allocator, test_num, "ram.bin")) |file_open| {
-            const buf = try allocator.alloc(u8, 1000);
-            defer allocator.free(buf);
+        if (utils.openFileRead(run_context, "ram.bin")) |file_open| {
+            const buf = try run_context.allocator.alloc(u8, 1000);
+            defer run_context.allocator.free(buf);
             reader = file_open.reader(buf);
         } else |err| switch (err) {
             std.fs.File.OpenError.FileNotFound => {},
             else => return err,
         }
         while (counter < ram_banks) : (counter += 1) {
-            const new_ram = try Ram.create(allocator, 0xA000, 0xBFFF);
+            const new_ram = try Ram.create(run_context.allocator, 0xA000, 0xBFFF);
             if (reader) |*optional| {
                 try utils.readData(optional, &new_ram.data);
             }
             try external_ram_banks.append(new_ram.*);
         }
     }
-    const mem = try allocator.create(Self);
+    const mem = try run_context.allocator.create(Self);
     mem.* = .{
         .timer = timer,
         .mapper = mapper,
@@ -85,18 +85,18 @@ pub fn create(
         .rom_1 = &rom_banks.items[0],
         .rom_2 = &rom_banks.items[1],
         .selected_rom = 0,
-        .vram = try Ram.create(allocator, 0x8000, 0x9FFF),
+        .vram = try Ram.create(run_context.allocator, 0x8000, 0x9FFF),
         .external_ram_banks = external_ram_banks.items,
         .external_ram = null,
         .external_ram_enabled = false,
         .selected_external_ram = 0,
-        .wram_1 = try Ram.create(allocator, 0xC000, 0xCFFF),
-        .wram_2 = try Ram.create(allocator, 0xD000, 0xDFFF),
-        .oam = try Ram.create(allocator, 0xFE00, 0xFE9F),
-        .io = try Ram.create(allocator, 0xFF00, 0xFF7F),
-        .hram = try Ram.create(allocator, 0xFF80, 0xFFFE),
+        .wram_1 = try Ram.create(run_context.allocator, 0xC000, 0xCFFF),
+        .wram_2 = try Ram.create(run_context.allocator, 0xD000, 0xDFFF),
+        .oam = try Ram.create(run_context.allocator, 0xFE00, 0xFE9F),
+        .io = try Ram.create(run_context.allocator, 0xFF00, 0xFF7F),
+        .hram = try Ram.create(run_context.allocator, 0xFF80, 0xFFFE),
         .ie = 0,
-        .joypad = try JoyPad.create(allocator),
+        .joypad = try JoyPad.create(run_context.allocator),
         .banking_mode = 0,
         .rtc_register = 0,
         .latch_last_write = 0xFF,

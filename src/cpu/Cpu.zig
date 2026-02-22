@@ -4,6 +4,7 @@ const Self = @This();
 const utils = @import("../utils.zig");
 const Memory = @import("../memory/Memory.zig");
 const Timer = @import("Timer.zig");
+const RunContext = @import("../RunContext.zig");
 
 memory: *Memory,
 timer: *Timer,
@@ -132,24 +133,24 @@ fn read(self: *Self) u8 {
     return memory_value;
 }
 
-pub fn saveRam(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
+pub fn saveRam(self: *Self, run_context: *const RunContext) !void {
     if (self.memory.external_ram_banks.len == 0) {
         return;
     }
-    const file = try utils.openFileWrite(allocator, test_num, "ram.bin");
+    const file = try utils.openFileWrite(run_context, "ram.bin");
     defer file.close();
-    const buffer = try allocator.alloc(u8, 1000);
-    defer allocator.free(buffer);
+    const buffer = try run_context.allocator.alloc(u8, 1000);
+    defer run_context.allocator.free(buffer);
     var writer = file.writer(buffer);
     try self.memory.saveRam(&writer);
 }
 
-pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
+pub fn saveState(self: *Self, run_context: *const RunContext) !void {
     // self.paused = true;
-    const file = try utils.openFileWrite(allocator, test_num, "state.bin");
+    const file = try utils.openFileWrite(run_context, "state.bin");
     defer file.close();
-    const buffer = try allocator.alloc(u8, 2000);
-    defer allocator.free(buffer);
+    const buffer = try run_context.allocator.alloc(u8, 2000);
+    defer run_context.allocator.free(buffer);
     var writer = file.writer(buffer);
     try utils.writeInt(&writer, u16, af.af, Endian.big);
     try utils.writeInt(&writer, u16, bc.full, Endian.big);
@@ -164,12 +165,12 @@ pub fn saveState(self: *Self, allocator: *const std.mem.Allocator, test_num: u8)
     try self.timer.saveState(&writer);
 }
 
-pub fn loadState(self: *Self, allocator: *const std.mem.Allocator, test_num: u8) !void {
+pub fn loadState(self: *Self, run_context: *const RunContext) !void {
     // self.paused = true;
-    const file = try utils.openFileRead(allocator, test_num, "state.bin");
+    const file = try utils.openFileRead(run_context, "state.bin");
     defer file.close();
-    const buffer = try allocator.alloc(u8, 2000);
-    defer allocator.free(buffer);
+    const buffer = try run_context.allocator.alloc(u8, 2000);
+    defer run_context.allocator.free(buffer);
     var reader = file.reader(buffer);
     af.af = try utils.readInt(&reader, u16, Endian.big);
     bc.full = try utils.readInt(&reader, u16, Endian.big);

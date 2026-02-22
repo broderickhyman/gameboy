@@ -5,8 +5,8 @@
       "path": "roms/dmg_boot.bin",
       "name": "DMG Boot ROM",
       "type": "boot_rom",
-      "pass_status": "passed",
-      "notes": "Bootstrap ROM, test harness verification"
+      "pass_status": "failed",
+      "notes": "Code currently assumes full rom"
     },
     {
       "test_id": 1,
@@ -138,7 +138,7 @@
     },
     {
       "test_id": 17,
-      "path": "../roms/dmg-acid2.gb",
+      "path": "roms/dmg-acid2.gb",
       "name": "DMG ACID2",
       "type": "display_test",
       "pass_status": "passed",
