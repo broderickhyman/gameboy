@@ -143,6 +143,7 @@ pub fn saveRam(self: *Self, run_context: *const RunContext) !void {
     defer run_context.allocator.free(buffer);
     var writer = file.writer(buffer);
     try self.memory.saveRam(&writer);
+    try writer.end();
 }
 
 pub fn saveState(self: *Self, run_context: *const RunContext) !void {
@@ -163,6 +164,7 @@ pub fn saveState(self: *Self, run_context: *const RunContext) !void {
     try utils.writeInt(&writer, u8, @intFromBool(self.paused), Endian.big);
     try self.memory.saveState(&writer);
     try self.timer.saveState(&writer);
+    try writer.end();
 }
 
 pub fn loadState(self: *Self, run_context: *const RunContext) !void {
