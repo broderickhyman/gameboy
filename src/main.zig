@@ -162,7 +162,7 @@ pub fn main() !void {
         log_out = log_file.writer(&logout_buffer);
     }
 
-    var run_context = RunContext.create(&gpa_allocator, output_dir, std_out, log_out);
+    var run_context = RunContext.create(&gpa_allocator, output_dir, fast, std_out, log_out);
 
     const timer = try Timer.create(&gpa_allocator);
 
@@ -181,13 +181,13 @@ pub fn main() !void {
         fakeCartridge(cpu);
     }
     if (display) {
-        try runDisplay(cpu, &run_context, test_num, fast);
+        try runDisplay(cpu, &run_context, test_num);
     } else {
         try runGameboyDoctor(cpu);
     }
 }
 
-fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: bool) !void {
+fn runDisplay(cpu: *Cpu, run_context: *RunContext, test_num: u8) !void {
     try SDL.init(.{
         .video = true,
         .events = true,
@@ -225,7 +225,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
     const smoothing = 0.9;
     const ideal_frame_time = 16740 * std.time.ns_per_us;
     var current_fps: f64 = 60.0;
-    var fps_buf: [10]u8 = undefined;
+    var fps_buf: [16]u8 = undefined;
     var frame_counter: u64 = 0;
     var output_timer = try std.time.Instant.now();
 
@@ -258,6 +258,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
                     switch (key_up.keycode) {
                         SDL.Keycode.q => break :mainLoop,
                         SDL.Keycode.@"return" => joypad.start = 1,
+                        SDL.Keycode.left_shift => run_context.fast = !run_context.fast,
                         SDL.Keycode.right_shift => joypad.select = 1,
                         SDL.Keycode.s => joypad.a = 1,
                         SDL.Keycode.a => joypad.b = 1,
@@ -292,7 +293,7 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
 
         if (run_cpu) {
             var frameDots: u32 = 70224;
-            if (fast) {
+            if (run_context.fast) {
                 frameDots *= 2;
             }
             var dots: u32 = 0;
@@ -324,20 +325,20 @@ fn runDisplay(cpu: *Cpu, run_context: *const RunContext, test_num: u8, fast: boo
             const text_rect = SDL.Rectangle{ .x = 60, .y = 60, .height = 10, .width = 40 };
             try renderer.copy(texture, text_rect, null);
         }
-
-        const fps_str = try std.fmt.bufPrintZ(&fps_buf, "{d:.1}", .{current_fps});
+        const fast_string: []const u8 = if (run_context.fast) " Fast" else "";
+        const fps_str = try std.fmt.bufPrintZ(&fps_buf, "{d:.1}{s}", .{ current_fps, fast_string });
         const surface = try font.renderTextSolid(fps_str, SDL.Color.red);
         defer surface.destroy();
         const texture = try SDL.createTextureFromSurface(renderer, surface);
         defer texture.destroy();
-        const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = 20 };
+        const text_rect = SDL.Rectangle{ .x = 0, .y = 0, .height = 10, .width = @intCast(fps_str.len * 4) };
         // _ = text_rect;
         try renderer.copy(texture, text_rect, null);
         renderer.present();
 
         const end = try std.time.Instant.now();
         var elapsed = end.since(start);
-        if (!fast and elapsed < ideal_frame_time) {
+        if (!run_context.fast and elapsed < ideal_frame_time) {
             const delay: u64 = @intCast(ideal_frame_time - elapsed);
             // if (frame_counter % 10 == 0) {
             // std.debug.print("Elapsed: {d}, Delay: {d}\n", .{
